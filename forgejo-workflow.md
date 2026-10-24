@@ -2,9 +2,31 @@
 
 この文書は、`myproject` 組織が所有する Java・C++ のリリース用リポジトリに Forgejo Actions を導入する手順です。先に[組織と Runner の登録](myproject-runner-registration.md)を終え、組織 Runner がオンラインであることを確認します。Forgejo 本体の導入は[installation.md](installation.md)を参照してください。
 
-## 1. 組織内にリポジトリを作る
+## 1. 組織内にリポジトリを用意する
 
-組織 `myproject` に Java と C++ のリポジトリをそれぞれ作成します。リポジトリ名は実プロジェクトに合わせます。所有者が `myproject` であることを確認し、第3節でビルド対象のソースとワークフローを `main` ブランチへ登録します。既存リポジトリを移管する場合も、移管後の所有者を確認します。
+通常は、組織 `myproject` に Java と C++ のリポジトリをそれぞれ新規作成します。リポジトリ名と公開範囲を実プロジェクトに合わせ、所有者が `myproject` であることを確認します。第3節でビルド対象のソースとワークフローを `main` ブランチへ登録します。
+
+### 既存の GitLab などから移行する場合
+
+既存のソースと Git の履歴を引き継ぐ場合は、Forgejo の移行機能を使えます。ただし、**現在の検証 VM では** `[repository] DISABLE_MIGRATIONS = true` のため、移行画面を利用できません。次の順序で準備します。
+
+1. Forgejo サーバから移行元 GitLab へ到達できることを確認します。非公開リポジトリや Issue などの情報も移す場合は、移行元で必要な権限を持つアクセストークンを用意します。
+2. 管理者が `/etc/forgejo/app.ini` の該当値を次のように一時変更し、Forgejo を再起動します。`ALLOWED_DOMAINS` の山括弧付き部分は実際の GitLab ホスト名へ置き換えます。プライベート IP アドレスへ直接接続する場合は、`[migrations] ALLOW_LOCALNETWORKS` の設定も確認します。[Forgejo 15.0 の設定一覧](https://forgejo.org/docs/v15.0/admin/config-cheat-sheet/)
+
+   ```ini
+   [repository]
+   DISABLE_MIGRATIONS = false
+
+   [migrations]
+   ALLOWED_DOMAINS = <移行元 GitLab のホスト名>
+   ```
+
+3. Forgejo の **画面右上の `+` → New Migration** から移行元として **GitLab** を選択します。GitLab 以外も、画面に表示される移行元から選択できます。移行元のリポジトリ URL と認証情報を入力し、移行先の所有者を `myproject`、リポジトリ名と公開範囲を実プロジェクトに合わせます。必要な移行項目を選び、単発の移行では継続同期用のミラーを選択しません。[Forgejo 15.0 のリポジトリ移行手順](https://forgejo.org/docs/v15.0/user/getting-started/first-repository/)
+4. 移行後は所有者、ブランチ、タグ、必要な移行項目を確認します。全リポジトリの移行が終わったら、移行用の設定を元に戻して Forgejo を再起動します。
+
+移行先では既存のソースとビルド定義を使い、第3節のワークフローを追加します。GitLab の CI 定義は Forgejo Actions のワークフローへ自動変換されません。移行元の既定ブランチが `main` 以外の場合は、ワークフロー内の対象ブランチを合わせるか、Forgejo 側の既定ブランチを `main` に変更してから第5節の手順へ進みます。
+
+Forgejo 内の既存リポジトリを組織へ移管する場合も、移管後の所有者を確認します。
 
 検証に使った `forgejo-admin` 所有のサンプルリポジトリと、組織が所有するリリース用リポジトリは別に扱います。ユーザー単位の Runner 登録は組織リポジトリへ自動では引き継がれません。[Runner の登録範囲](https://forgejo.org/docs/v15.0/admin/actions/registration/)
 

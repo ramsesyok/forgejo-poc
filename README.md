@@ -6,7 +6,7 @@
 
 1. **Forgejo の基盤を用意する。** 新しく構築する場合は[VM の準備](vm/README.md)、[配布物の準備](preparation.md)、[Forgejo の導入](installation.md)を参照します。既存の検証 VM を使う場合は導入手順を繰り返さず、サービスの稼働を確認します。
 2. **`myproject` と組織 Runner を用意する。** [組織・Runner 登録手順](myproject-runner-registration.md)に従い、組織を作成して Runner を組織単位で登録し、オンライン状態を確認します。リポジトリはその後に作成できます。
-3. **組織内にリリース用リポジトリを作る。** [ワークフロー導入手順](forgejo-workflow.md)に従い、各リポジトリで Actions を有効にし、Runner のラベルを確認します。サンプルで試す場合は一式を、実プロジェクトへ適用する場合はワークフローと必要な補助ファイルを調整して配置します。
+3. **組織内にリリース用リポジトリを作る。** [ワークフロー導入手順](forgejo-workflow.md)に従い、新規リポジトリを作成します。既存の GitLab などにソースがある場合は、同手順の移行方法も利用できます。リポジトリを用意した後、Actions と Runner を確認し、ワークフローを配置します。
 4. **ビルドとリリースを確認する。** `main` への push でビルド・テスト・梱包を確認し、リリースするときは Actions 画面からタグ名を入力して手動実行します。push だけではリリースを作りません。
 
 ## 文書の役割
@@ -17,7 +17,7 @@
 | [preparation.md](preparation.md) | オフライン環境へ持ち込む Forgejo・Runner・RPM を準備するとき |
 | [installation.md](installation.md) | Forgejo と検証 VM を新規構築・再現するとき。ここで登録する `forgejo-admin` ユーザー単位の Runner は基盤検証用 |
 | [myproject-runner-registration.md](myproject-runner-registration.md) | 既存の検証 VM に `myproject` 組織向けの Runner 接続を追加するとき |
-| [forgejo-workflow.md](forgejo-workflow.md) | 組織配下のリポジトリへワークフローを配置し、Actions を動かすとき |
+| [forgejo-workflow.md](forgejo-workflow.md) | 組織配下にリポジトリを新規作成、または既存の GitLab などから移行し、ワークフローと Actions を動かすとき |
 | [Java WAR サンプル](examples/java-war-release-template/README.md) | WAR、DDL アーカイブ、ZIP の内容を実プロジェクトへ合わせるとき |
 | [C++ サンプル](examples/cpp-release-sample/README.md) | 実行ファイル、起動・停止シェル、共有ライブラリの梱包を合わせるとき |
 

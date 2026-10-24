@@ -410,6 +410,8 @@ jobs:
 
 この節は**Forgejo、Forgejo Runner、Actionsジョブがインターネット上のサービスを参照しないための設定**を確認します。OSやネットワークの隔離方法は扱いません。
 
+`DISABLE_MIGRATIONS = true` はこの検証 VM の通常設定です。既存の GitLab などから一度だけリポジトリを移行する場合は、[ワークフロー導入手順の移行方法](forgejo-workflow.md#既存の-gitlab-などから移行する場合)に従って移行元への接続と設定変更を行います。
+
 [Forgejo 15.0設定一覧](https://forgejo.org/docs/v15.0/admin/config-cheat-sheet/)によると、`OFFLINE_MODE = true`はCDNとGravatarの利用を止めます。一方、`[actions] DEFAULT_ACTIONS_URL`の既定値は外部URLで、`[mirror] ENABLED`の既定値は`true`です。[Actions管理者ガイド](https://forgejo.org/docs/v15.0/admin/actions/)によると、相対指定の`uses:`は`DEFAULT_ACTIONS_URL`を基準に解決されます。本文の`app.ini`ではこれらを明示的に内部向けへ変更しています。
 
 | 対象 | 本文で指定する設定と確認内容 |
