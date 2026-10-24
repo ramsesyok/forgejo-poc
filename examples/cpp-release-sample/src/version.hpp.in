@@ -1,0 +1,3 @@
+#pragma once
+
+#define SAMPLE_VERSION "@SAMPLE_VERSION@"

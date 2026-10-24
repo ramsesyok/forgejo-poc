@@ -1,0 +1,51 @@
+name: C++ build and release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (for example v0.1.0)'
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: el8-mydev
+    env:
+      API_TOKEN: ${{ forgejo.token }}
+      RELEASE_VERSION: ${{ inputs.version }}
+    steps:
+      - name: Download the triggering source commit
+        run: |
+          set -euo pipefail
+          mkdir -p "$FORGEJO_WORKSPACE/source"
+          archive=$(mktemp)
+          trap 'rm -f "$archive"' EXIT
+          curl --fail --silent --show-error --location \
+            --header "Authorization: token ${API_TOKEN}" \
+            --output "$archive" \
+            "${FORGEJO_API_URL}/repos/${FORGEJO_REPOSITORY}/archive/${FORGEJO_SHA}.tar.gz"
+          tar -xzf "$archive" --strip-components=1 -C "$FORGEJO_WORKSPACE/source"
+          test -f "$FORGEJO_WORKSPACE/source/CMakeLists.txt"
+
+      - name: Build and test Linux binary
+        run: |
+          set -euo pipefail
+          cd "$FORGEJO_WORKSPACE/source"
+          if [ "$FORGEJO_EVENT_NAME" = workflow_dispatch ]; then
+            test "$FORGEJO_REF" = refs/heads/main
+            [[ "$RELEASE_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+            bash scripts/build.sh "${RELEASE_VERSION#v}"
+          else
+            bash scripts/build.sh
+          fi
+
+      - name: Create release and attach binaries
+        if: forgejo.event_name == 'workflow_dispatch'
+        run: |
+          set -euo pipefail
+          cd "$FORGEJO_WORKSPACE/source"
+          bash scripts/publish-release.sh "$RELEASE_VERSION"
