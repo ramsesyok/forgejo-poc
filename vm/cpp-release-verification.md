@@ -1,5 +1,7 @@
 # C++ サンプルの Forgejo Actions 検証（2026-10-24）
 
+この文書は初期版の検証記録です。当時の配布形式は tar.gz でした。現在の C++ サンプルは配布フォルダを ZIP にまとめるため、運用手順と内容物は[現在の README](../examples/cpp-release-sample/README.md)を参照してください。
+
 ## 構成
 
 - Forgejo: 15.0.10、Oracle Linux Server 8.10 の検証 VM `forgejo-lab`

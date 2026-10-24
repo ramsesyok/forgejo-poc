@@ -2,6 +2,8 @@
 
 この文書は、**RHEL 8またはOracle Linux 8のオンプレミスサーバ**へ、人がコマンドを順に実行し、設定ファイルを編集してForgejoとRunnerを導入するマニュアルです。インストールスクリプトは使いません。[準備端末の手順](preparation.md)に従い、配布物と必要なRPMを対象サーバへ搬入してから本文を始めます。ForgejoとRunnerを同じサーバに置き、Runnerのジョブをコンテナなしで実行します。導入後の確認結果は実施者が記録します。
 
+対象は既存の検証 VM の再現です。第5節では基盤検証用に `forgejo-admin` ユーザー単位の Runner を登録します。目的とする `myproject` 組織のリリース用リポジトリには、この登録をそのまま使えません。既存 VM での次の作業は[組織・Runner 登録手順](myproject-runner-registration.md)、続いて[ワークフロー導入手順](forgejo-workflow.md)へ進みます。文書全体の読み順は[README](README.md)を参照してください。
+
 ## 0. 対象と事前確認
 
 | 項目 | 手順の前提 | 導入前に決める値 |
@@ -240,7 +242,7 @@ install -m 0600 -o devops -g devops /root/forgejo-admin-initial.txt /home/devops
 rm -f /root/forgejo-admin-initial.txt /home/devops/forgejo-admin-initial.txt
 ```
 
-## 5. 手動ビルドユーザーとRunnerの配置・登録
+## 5. 検証用ビルドユーザーとユーザー単位Runnerの配置・登録
 
 引き続きrootシェルで操作します。`mydev`はこのプロダクトの手動ビルド用Linuxユーザーです。Runnerサービスとhostジョブも同じユーザーで動かします。`wheel`へ追加せず、パスワードを設定しない初期状態にします。管理者は`sudo -iu mydev`で手動ビルドできます。hostジョブは`mydev`のホームにあるファイルも読めるため、個人用の秘密鍵やパスワードは置きません。
 
@@ -336,6 +338,8 @@ exit
 ```
 
 ログに`declared successfully`、`labels: [el8-mydev]`、`[poller] launched`が出ることを確認します。**上記の登録コマンドで`--scope forgejo-admin`を指定したため、このRunnerは`forgejo-admin`ユーザー単位で登録されています。追加の対象設定は不要です。** 対象は`forgejo-admin`自身が所有するリポジトリのワークフローで、管理権限を持つだけの別ユーザー・組織のリポジトリは含みません。[Runner登録ガイド](https://forgejo.org/docs/v15.0/admin/actions/registration/) Web画面では`forgejo-admin`でログインし、ユーザー設定の`Actions > Runners`でオンライン状態を確認できます。
+
+この登録は検証 VM の基盤動作を確かめるためのものです。`myproject` にリリース用リポジトリを置く際は、[組織・Runner 登録手順](myproject-runner-registration.md)で組織単位の接続を追加します。
 
 ### 複数の手動ビルド環境を置く場合
 

@@ -1,5 +1,7 @@
 # Java サンプルの Forgejo Actions 検証（2026-10-24）
 
+この文書は初期の JAR サンプルの検証記録です。現在の WAR と DDL のリリース手順は[Java WAR サンプルの README](../examples/java-war-release-template/README.md)を参照してください。
+
 ## 構成
 
 - Forgejo: 15.0.10、検証 VM `forgejo-lab`

@@ -1,49 +1,56 @@
-# Java・C++ リリースワークフローの利用準備
+# `myproject` のリリース用リポジトリとワークフロー
 
-この文書は、[Java WAR サンプル](examples/java-war-release-template/README.md)と[C++ サンプル](examples/cpp-release-sample/README.md)を Forgejo の独立したリポジトリで動かすための設定をまとめたものです。対象はこのリポジトリの[導入手順](installation.md)で構築した Forgejo 15.0 と Forgejo Runner 13.2 の環境です。
+この文書は、`myproject` 組織が所有する Java・C++ のリリース用リポジトリに Forgejo Actions を導入する手順です。先に[組織と Runner の登録](myproject-runner-registration.md)を終え、組織 Runner がオンラインであることを確認します。Forgejo 本体の導入は[installation.md](installation.md)を参照してください。
 
-## 1. ワークフローをリポジトリに配置する
+## 1. 組織内にリポジトリを作る
 
-各サンプルの**フォルダの中身**を、それぞれの Forgejo リポジトリのルートへ配置して `main` に push します。配置後のワークフローのパスは `.forgejo/workflows/build-release.yml` です。`examples/<サンプル名>/` の階層は含めません。[Forgejo Actions クイックスタート](https://forgejo.org/docs/v15.0/user/actions/quick-start/)
+組織 `myproject` に Java と C++ のリポジトリをそれぞれ作成します。リポジトリ名は実プロジェクトに合わせます。所有者が `myproject` であることを確認し、第3節でビルド対象のソースとワークフローを `main` ブランチへ登録します。既存リポジトリを移管する場合も、移管後の所有者を確認します。
 
-両ワークフローの起動条件は次のとおりです。
+検証に使った `forgejo-admin` 所有のサンプルリポジトリと、組織が所有するリリース用リポジトリは別に扱います。ユーザー単位の Runner 登録は組織リポジトリへ自動では引き継がれません。[Runner の登録範囲](https://forgejo.org/docs/v15.0/admin/actions/registration/)
+
+## 2. Actions と Runner を確認する
+
+| 場所 | 確認すること |
+| --- | --- |
+| Forgejo 管理設定 | `[actions] ENABLED = true`。現在の検証 VM では有効化済み |
+| 各リポジトリの **設定 → Units → Overview** | **Actions** にチェックが入っていること。無効なら有効にする |
+| 各リポジトリの **設定 → Actions → Runners** | `myproject` の Runner がオンラインで、`el8-mydev` ラベルを持つこと |
+
+組織 Runner が一覧にない場合は、[組織と Runner の登録手順](myproject-runner-registration.md)で登録範囲と接続状態を確認します。[Forgejo Actions クイックスタート](https://forgejo.org/docs/v15.0/user/actions/quick-start/)
+
+## 3. ワークフローを配置する
+
+サンプルをそのまま動作確認する新規リポジトリには、使うサンプルの**フォルダの中身**をルートへ配置します。既存の実プロジェクトには、ワークフローと必要な補助ファイルを取り込みます。既存の `src/` やビルド定義を使い、ワークフローのパスと引数を合わせます。
+
+どちらの場合もワークフローのパスはリポジトリのルートから見た `.forgejo/workflows/build-release.yml` です。`examples/<サンプル名>/` の階層は含めません。
+
+| サンプル | 配置後に確認・調整するもの |
+| --- | --- |
+| [Java WAR](examples/java-war-release-template/README.md) | `runs-on`、`JAVA_HOME`、`MAVEN_HOME`、`WAR_BASENAME`、`DEFAULT_REVISION`、WAR の起動・HTTP 検査、`tools/DB/DDL` |
+| [C++](examples/cpp-release-sample/README.md) | `runs-on`、CMake のビルド設定、`scripts/runtime-libraries.txt`、`start_MP.sh`、`stop_MP.sh` |
+
+両サンプルの `runs-on` は `el8-mydev` です。組織 Runner のラベルを変更した場合はワークフローも合わせます。ソース取得とリリース登録には、実行時に自動発行される `${{ forgejo.token }}` を使います。現在のサンプルでは個人アクセストークン、リポジトリ Secret、Webhook の追加登録は不要です。[Forgejo Actions のトークン仕様](https://forgejo.org/docs/v15.0/user/actions/reference/)
+
+## 4. Runner 上のビルド環境
+
+Runner は `mydev` ユーザーでホスト上にジョブを実行します。両ワークフローは Forgejo API から対象コミットのアーカイブを取得するため、Runner から API URL に接続でき、`bash`、`curl`、`tar`、`sha256sum` を実行できる必要があります。外部の `uses:` Action は利用しません。
+
+| サンプル | 必要なビルド環境 |
+| --- | --- |
+| Java WAR | JDK 17、Maven、ビルドに必要な Maven 依存物。サンプルの設定は `JAVA_HOME=/opt/forgejo-java-tools/jdk`、`MAVEN_HOME=/opt/forgejo-java-tools/maven` |
+| C++ | CMake、C++ コンパイラ、`make`。実プロジェクトでは `runtime-libraries.txt` に指定した共有ライブラリも Runner 上に置く |
+
+ネットワークを遮断した環境では、Maven の依存物を Runner が参照できるローカルキャッシュまたは内部リポジトリに用意します。Java の WAR 名・HTTP 検査先、C++ の共有ライブラリや配布用シェルは、各サンプルの README に従って実プロジェクトへ合わせます。
+
+## 5. push とリリースを確認する
 
 | 操作 | 実行内容 |
 | --- | --- |
-| `main` へ push | ビルド・テスト・梱包を実行する。リリースは作成しない |
-| Actions 画面から `main` を選び、`tag` を入力して手動実行 | ビルド・テスト・梱包後、タグと Forgejo リリースを作成する |
-
-タグを push するだけでは手動リリースは始まりません。手動実行には `workflow_dispatch` を使用します。[Forgejo Actions のイベント仕様](https://forgejo.org/docs/v15.0/user/actions/reference/)
-
-## 2. Forgejo 側で確認する設定
-
-| 場所 | 確認・設定すること |
-| --- | --- |
-| Forgejo 管理設定 | `[actions] ENABLED = true`。この環境の `app.ini` では有効化済み。Actions がリポジトリ設定に表示されない場合は、管理者がインスタンス設定を確認する |
-| 各リポジトリの **設定 → Units → Overview** | **Actions** にチェックが入っていることを確認する。無効なら有効化する |
-| 各リポジトリの **設定 → Actions → Runners** | オンラインの Runner が表示され、ワークフローの `runs-on: el8-mydev` と一致するラベルを持つことを確認する |
-
-この環境の Runner は `forgejo-admin` **ユーザー単位**で登録され、ラベルは `el8-mydev:host` です。`forgejo-admin` が所有する新しいリポジトリなら、リポジトリごとの Runner 登録は不要です。
-
-組織を作成したり、リポジトリを組織へ移したりしても、この登録範囲は自動では変わりません。組織所有のリポジトリで実行するには、組織の **設定 → Actions → Runners** で組織単位の Runner を登録します。既存の Runner プロセスに組織向けの接続を追加することもできますが、その場合も組織用の登録が別途必要です。登録後は、対象リポジトリの Runner 一覧で利用可能か確認し、`runs-on` をラベルに合わせます。[`myproject` の作成と登録手順](myproject-runner-registration.md)、[Forgejo Runner の登録範囲と複数接続](https://forgejo.org/docs/v15.0/admin/actions/registration/)
-
-ワークフローは実行時に自動発行される `${{ forgejo.token }}` を Forgejo API へのアクセスに使います。このサンプルを現在の環境で動かすために、個人アクセストークンやリポジトリ Secret、Webhook を追加登録する必要はありません。[Forgejo のトークン仕様](https://forgejo.org/docs/v15.0/user/actions/reference/)
-
-## 3. Runner 上のビルド環境
-
-Runner のサービスは `mydev` ユーザーで動き、ジョブはホスト上で実行されます。両ワークフローは Forgejo API から対象コミットのアーカイブを取得するため、Runner から Forgejo の API URL に接続でき、`bash`、`curl`、`tar`、`sha256sum` を実行できる必要があります。外部の `uses:` Action は利用しません。
-
-| サンプル | Runner に必要なもの | ワークフローで合わせる値 |
-| --- | --- | --- |
-| Java WAR | JDK 17、Maven、ビルドに必要な Maven 依存物 | `JAVA_HOME=/opt/forgejo-java-tools/jdk`、`MAVEN_HOME=/opt/forgejo-java-tools/maven`、`WAR_BASENAME`、`DEFAULT_REVISION` |
-| C++ | CMake、C++ コンパイラ、`make`、実プロジェクトで配布する共有ライブラリ | `runs-on`、`scripts/runtime-libraries.txt` に書いたライブラリのパス |
-
-ネットワークを遮断した環境で Java をビルドする場合は、Maven の依存物を Runner が参照できるローカルキャッシュまたは内部リポジトリに用意します。Java の実プロジェクトでは、`pom.xml` の `revision` 指定、WAR の出力名、起動後の HTTP 検査先も合わせます。C++ サンプルでは共有ライブラリの指定はコメントアウトされています。実プロジェクトでは `runtime-libraries.txt` に指定したファイルが Runner 上にあり、`start_MP.sh` と `stop_MP.sh` が配布できる状態であることを確認します。
-
-## 4. 動作確認
+| `main` への push | ビルド・テスト・梱包を実行する。リリースは作成しない |
+| Actions 画面で `main` から `tag` を入力して手動実行 | 同じ検査の後、タグと Forgejo リリースを作成する |
 
 1. 対象リポジトリの `main` にワークフローを含むコミットを push し、**Actions** に実行が表示されて成功することを確認します。
-2. リリースを試す場合は、**Actions** から対象のワークフローを `main` で手動実行し、`tag` を入力します。
+2. リリースを試す場合は、**Actions** から対象のワークフローを `main` で手動実行し、`tag` を入力します。タグを push するだけではリリースは作成されません。
 3. 実行が成功したら、**Releases** でタグ、ZIP、個別ファイル、`SHA256SUMS` を確認します。
 
 ワークフローが表示されなければ配置パスと Actions の有効化を、実行待ちのままなら Runner のオンライン状態とラベルを確認します。ジョブが始まってから失敗した場合は、その実行ログで API 接続、ツールのパス、ビルド依存物、配布対象ファイルを確認します。[Forgejo Actions クイックスタート](https://forgejo.org/docs/v15.0/user/actions/quick-start/)

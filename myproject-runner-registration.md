@@ -1,6 +1,6 @@
 # `myproject` の作成と組織 Runner の登録
 
-Forgejo に組織 `myproject` を作成し、組織内のリポジトリで利用できる Runner を登録する手順です。**リポジトリの作成前に実施できます。** 対象は、このリポジトリの[導入手順](installation.md)で構築した Forgejo 15.0 / Runner 13.2 の検証環境です。
+Forgejo に組織 `myproject` を作成し、組織内のリポジトリで利用できる Runner を登録する手順です。**リポジトリの作成前に実施できます。** 対象は[導入手順](installation.md)どおりに稼働中の Forgejo 15.0 / Runner 13.2 検証 VM です。新規 VM の初期導入ではなく、既存 VM に組織向けの接続を追加します。
 
 この手順では、稼働中の `forgejo-runner-mydev.service` に `myproject` 用の接続を追加します。既存の `forgejo-admin` ユーザー単位の接続は残します。ジョブはどちらの接続から受けても `mydev` ユーザーでホスト上に実行され、Runner のラベルは既存の `el8-mydev:host` を共有します。組織のリポジトリにワークフローを書ける人がこの環境でジョブを実行できるため、`myproject` のメンバーとリポジトリの書き込み権限を先に決めてください。
 
@@ -77,8 +77,9 @@ exit
 
 ## 6. 登録結果を確認する
 
-1. Forgejo の `myproject` **設定 → Actions → Runners** で、`myproject-mydev` がオンラインで、ラベル `el8-mydev` を持つことを確認します。
+1. Forgejo の `myproject` **設定 → Actions → Runners** で、`myproject-mydev` がオンラインで、ラベル `el8-mydev` を持つことを確認します。この時点でリポジトリはなくても構いません。
 2. 後から `myproject` にリポジトリを作成または移管したら、そのリポジトリの **設定 → Actions → Runners** に組織 Runner が表示されることを確認します。
-3. リポジトリの **設定 → Units → Overview** で Actions を有効にし、ワークフローの `runs-on` を `el8-mydev` に合わせます。ワークフローの配置と実行は[forgejo-workflow.md](forgejo-workflow.md)を参照してください。
+
+次は[リリース用リポジトリとワークフローの導入](forgejo-workflow.md)へ進みます。
 
 組織 Runner がオフラインなら、Runner サービスのログ、追加した UUID、Token ファイルの所有者・権限、`server.connections` の YAML インデントを確認します。リポジトリでジョブが待機したままなら、そのリポジトリから Runner が見えるか、`runs-on` とラベルが一致するかを確認します。
