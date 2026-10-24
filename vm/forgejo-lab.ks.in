@@ -1,0 +1,45 @@
+# Oracle Linux 8.10 minimal lab VM. Tokens are filled by New-ForgejoLab.ps1.
+# This file has no credentials and is safe to keep in Git.
+cdrom
+text
+firstboot --disable
+reboot --eject
+lang en_US.UTF-8
+keyboard --vckeymap=us --xlayouts='us'
+timezone Asia/Tokyo --utc
+network --bootproto=dhcp --device=link --activate --onboot=on --hostname=forgejo-lab
+rootpw --lock
+user --name=devops --groups=wheel --iscrypted --password=@@PASSWORD_HASH@@
+firewall --enabled --service=ssh
+selinux --enforcing
+services --enabled=sshd,vmtoolsd,firewalld,NetworkManager
+bootloader --location=mbr --boot-drive=sda
+ignoredisk --only-use=sda
+clearpart --all --initlabel --drives=sda
+autopart --type=lvm
+
+%packages
+@^minimal-environment
+openssh-server
+open-vm-tools
+sudo
+firewalld
+policycoreutils
+%end
+
+%post --erroronfail --log=/root/ks-post.log
+install -d -m 0700 -o devops -g devops /home/devops/.ssh
+cat > /home/devops/.ssh/authorized_keys <<'KEY'
+@@PUBLIC_KEY@@
+KEY
+chmod 0600 /home/devops/.ssh/authorized_keys
+chown devops:devops /home/devops/.ssh/authorized_keys
+restorecon -RF /home/devops/.ssh
+firewall-offline-cmd --zone=public --remove-service=cockpit
+firewall-offline-cmd --zone=public --remove-service=dhcpv6-client
+firewall-offline-cmd --zone=public --add-service=ssh
+sed -i -E 's/^[#[:space:]]*PasswordAuthentication[[:space:]].*/PasswordAuthentication no/; s/^[#[:space:]]*PermitRootLogin[[:space:]].*/PermitRootLogin no/' /etc/ssh/sshd_config
+grep -q '^PasswordAuthentication no$' /etc/ssh/sshd_config || echo 'PasswordAuthentication no' >> /etc/ssh/sshd_config
+grep -q '^PermitRootLogin no$' /etc/ssh/sshd_config || echo 'PermitRootLogin no' >> /etc/ssh/sshd_config
+systemctl enable sshd vmtoolsd firewalld NetworkManager
+%end
