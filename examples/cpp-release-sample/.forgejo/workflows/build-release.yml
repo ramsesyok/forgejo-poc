@@ -1,26 +1,31 @@
 name: C++ build and release
 
+# push はビルド・梱包まで確認する。手動実行だけが Forgejo リリースを公開する。
 on:
   push:
     branches:
       - main
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Release version (for example v0.1.0)'
+      tag:
+        description: 'Release tag (for example v0.1.0 or 20261024.01)'
         required: true
         type: string
 
 jobs:
   build:
+    # このサンプルの CMake と C++ コンパイラがある Runner を選ぶ。
     runs-on: el8-mydev
     env:
+      # Forgejo がこのジョブに渡す一時トークン。ソース取得とリリース登録に使う。
       API_TOKEN: ${{ forgejo.token }}
-      RELEASE_VERSION: ${{ inputs.version }}
+      RELEASE_TAG: ${{ inputs.tag }}
     steps:
-      - name: Download the triggering source commit
+      # 各 run ステップは別のシェルなので、必要なステップでは毎回 source へ移動する。
+      - name: 実行対象コミットのソースを取得
         run: |
           set -euo pipefail
+          # 実行を起動したコミットを取得し、途中で main が進んでも対象を固定する。
           mkdir -p "$FORGEJO_WORKSPACE/source"
           archive=$(mktemp)
           trap 'rm -f "$archive"' EXIT
@@ -31,21 +36,40 @@ jobs:
           tar -xzf "$archive" --strip-components=1 -C "$FORGEJO_WORKSPACE/source"
           test -f "$FORGEJO_WORKSPACE/source/CMakeLists.txt"
 
-      - name: Build and test Linux binary
+      - name: C++ をビルドしてテスト
         run: |
           set -euo pipefail
           cd "$FORGEJO_WORKSPACE/source"
           if [ "$FORGEJO_EVENT_NAME" = workflow_dispatch ]; then
-            test "$FORGEJO_REF" = refs/heads/main
-            [[ "$RELEASE_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
-            bash scripts/build.sh "${RELEASE_VERSION#v}"
+            # 手動リリースは main からの実行に限定する。タグ名の形式は検査しない。
+            if [ "$FORGEJO_REF" != refs/heads/main ]; then
+              echo 'Release must run from main' >&2
+              exit 1
+            fi
+            if [ -z "$RELEASE_TAG" ]; then
+              echo 'Release tag is required' >&2
+              exit 1
+            fi
+            bash scripts/build.sh "${RELEASE_TAG#v}"
           else
+            # push 時はサンプル既定版番号でビルドし、リリースは作成しない。
             bash scripts/build.sh
           fi
 
-      - name: Create release and attach binaries
+      - name: 配布ファイルを集めて ZIP 化
+        run: |
+          set -euo pipefail
+          cd "$FORGEJO_WORKSPACE/source"
+          # package-release.sh がライブラリと起動・停止シェルを集め、ZIP と SHA256SUMS を作る。
+          if [ "$FORGEJO_EVENT_NAME" = workflow_dispatch ]; then
+            bash scripts/package-release.sh "${RELEASE_TAG#v}"
+          else
+            bash scripts/package-release.sh
+          fi
+
+      - name: Forgejo リリースを作成してファイルを添付
         if: forgejo.event_name == 'workflow_dispatch'
         run: |
           set -euo pipefail
           cd "$FORGEJO_WORKSPACE/source"
-          bash scripts/publish-release.sh "$RELEASE_VERSION"
+          bash scripts/publish-release.sh "$RELEASE_TAG"
