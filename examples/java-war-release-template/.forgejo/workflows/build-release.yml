@@ -1,0 +1,170 @@
+# WAR プロジェクトへ移植する際は、Runner・JDK/Maven・WAR 名・既定版番号を確認する。
+name: リリースアクション
+
+on:
+  # push ではビルドとテストだけを実行し、リリースは作成しない。
+  push:
+    branches:
+      - main
+  # Actions 画面で tag を入力すると、ビルド後にタグとリリースを作成する。
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (for example v0.1.0 or 20261024.01)'
+        required: true
+        type: string
+
+jobs:
+  build:
+    # 実プロジェクトを実行する Runner のラベルに合わせる。
+    runs-on: el8-mydev
+    env:
+      # Forgejo がジョブに発行するトークン。ソース取得とリリース登録に使う。
+      API_TOKEN: ${{ forgejo.token }}
+      RELEASE_TAG: ${{ inputs.tag }}
+      # Runner 上のインストール先に合わせる。
+      JAVA_HOME: /opt/forgejo-java-tools/jdk
+      MAVEN_HOME: /opt/forgejo-java-tools/maven
+      # push 時の版番号と、Maven が出力する WAR のベース名。
+      DEFAULT_REVISION: 0.1.0
+      WAR_BASENAME: planning-api
+    steps:
+      - name: Download the triggering source commit
+        run: |
+          set -euo pipefail
+          # 起動元コミットのアーカイブを取得し、ビルド元を固定する。
+          mkdir -p "$FORGEJO_WORKSPACE/source"
+          archive=$(mktemp)
+          trap 'rm -f "$archive"' EXIT
+          curl --fail --silent --show-error --location \
+            --header "Authorization: token ${API_TOKEN}" \
+            --output "$archive" \
+            "${FORGEJO_API_URL}/repos/${FORGEJO_REPOSITORY}/archive/${FORGEJO_SHA}.tar.gz"
+          tar -xzf "$archive" --strip-components=1 -C "$FORGEJO_WORKSPACE/source"
+          test -f "$FORGEJO_WORKSPACE/source/pom.xml"
+          test -d "$FORGEJO_WORKSPACE/source/tools/DB/DDL"
+
+      - name: Build WAR and run Maven tests
+        run: |
+          set -euo pipefail
+          export PATH="$JAVA_HOME/bin:$MAVEN_HOME/bin:$PATH"
+          cd "$FORGEJO_WORKSPACE/source"
+          if [ "$FORGEJO_EVENT_NAME" = workflow_dispatch ]; then
+            # リリースは main からの手動実行に限定する。
+            if [ "$FORGEJO_REF" != refs/heads/main ]; then
+              echo 'Release must run from main' >&2
+              exit 1
+            fi
+            # タグ名の形式は検査せず、先頭の v だけを Maven revision から除く。
+            revision=${RELEASE_TAG#v}
+          else
+            revision=$DEFAULT_REVISION
+          fi
+          # package の前に clean を実行する。-DskipTests は付けず Maven テストを実行する。
+          mvn -B -ntp -Drevision="$revision" clean package
+          test -s "target/${WAR_BASENAME}-${revision}.war"
+
+      - name: Start WAR and check HTTP response
+        run: |
+          set -euo pipefail
+          export PATH="$JAVA_HOME/bin:$PATH"
+          cd "$FORGEJO_WORKSPACE/source"
+          if [ "$FORGEJO_EVENT_NAME" = workflow_dispatch ]; then
+            revision=${RELEASE_TAG#v}
+          else
+            revision=$DEFAULT_REVISION
+          fi
+          war="target/${WAR_BASENAME}-${revision}.war"
+          port=18081
+          java -jar "$war" --server.address=127.0.0.1 --server.port="$port" > target/smoke.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+
+          for attempt in $(seq 1 40); do
+            response=$(curl --silent --fail --max-time 2 "http://127.0.0.1:${port}/hello") && break
+            sleep 1
+          done
+          if [ "${response:-}" != 'Hello from WAR release sample!' ]; then
+            cat target/smoke.log >&2
+            echo 'WAR HTTP smoke test failed' >&2
+            exit 1
+          fi
+
+      - name: Package DDL and create release ZIP
+        if: forgejo.event_name == 'workflow_dispatch'
+        run: |
+          set -euo pipefail
+          export PATH="$JAVA_HOME/bin:$PATH"
+          cd "$FORGEJO_WORKSPACE/source"
+          revision=${RELEASE_TAG#v}
+          war="${WAR_BASENAME}-${revision}.war"
+          bundle="release-${revision}.zip"
+          mkdir -p dist
+          cp "target/$war" "dist/$war"
+
+          stage=$(mktemp -d)
+          trap 'rm -rf -- "$stage"' EXIT
+          mkdir -p "$stage/dbscript"
+          # 元の DDL は変更せず、一時領域の複製から環境固有ファイルを除外する。
+          cp -rP tools/DB/DDL "$stage/dbscript/DDL"
+          rm -rf -- "$stage/dbscript/DDL/USER"
+          for path in "$stage"/dbscript/DDL/*_devenv.sh; do
+            if [ -e "$path" ] || [ -L "$path" ]; then
+              rm -f -- "$path"
+            fi
+          done
+          tar -czf dist/dbscript.tar.gz -C "$stage" dbscript
+
+          # ZIP は WAR と dbscript.tar.gz を含む。SHA256SUMS は各配布ファイルを検証するためのもの。
+          (
+            cd dist
+            jar -cMf "$bundle" "$war" dbscript.tar.gz
+            sha256sum "$war" dbscript.tar.gz "$bundle" > SHA256SUMS
+          )
+
+      - name: Create Forgejo release and attach files
+        if: forgejo.event_name == 'workflow_dispatch'
+        run: |
+          set -euo pipefail
+          cd "$FORGEJO_WORKSPACE/source"
+          revision=${RELEASE_TAG#v}
+          war="${WAR_BASENAME}-${revision}.war"
+          bundle="release-${revision}.zip"
+          for asset in "$war" dbscript.tar.gz "$bundle" SHA256SUMS; do
+            test -s "dist/$asset"
+          done
+
+          # 同名リリースの上書きを避ける。404 の場合だけ新規作成する。
+          release_url="${FORGEJO_API_URL}/repos/${FORGEJO_REPOSITORY}/releases"
+          status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+            --header "Authorization: token ${API_TOKEN}" "$release_url/tags/$RELEASE_TAG")
+          if [ "$status" != 404 ]; then
+            echo "Release $RELEASE_TAG must not exist (API status $status)" >&2
+            exit 1
+          fi
+
+          # 添付途中のリリースを見せないため、まず下書きとして作成する。
+          # 本文にはビルド元の完全なコミット ID と Maven revision を残す。
+          payload=$(printf '{"tag_name":"%s","target_commitish":"%s","name":"%s","body":"Source commit: %s\\nMaven revision: %s","draft":true,"prerelease":false}' \
+            "$RELEASE_TAG" "$FORGEJO_SHA" "$RELEASE_TAG" "$FORGEJO_SHA" "$revision")
+          response=$(curl --fail --silent --show-error --request POST \
+            --header "Authorization: token ${API_TOKEN}" \
+            --header 'Content-Type: application/json' \
+            --data "$payload" "$release_url")
+          release_id=$(printf '%s' "$response" | perl -ne 'if (/^\{"id":\s*(\d+),/) { print "$1\n"; exit }')
+          if [[ ! "$release_id" =~ ^[0-9]+$ ]]; then
+            echo 'Could not read release ID from Forgejo response' >&2
+            exit 1
+          fi
+
+          for asset in "$war" dbscript.tar.gz "$bundle" SHA256SUMS; do
+            curl --fail --silent --show-error --request POST \
+              --header "Authorization: token ${API_TOKEN}" \
+              --form "attachment=@dist/$asset" \
+              "$release_url/$release_id/assets?name=$asset" > /dev/null
+          done
+          # すべての添付が成功した後に公開する。
+          curl --fail --silent --show-error --request PATCH \
+            --header "Authorization: token ${API_TOKEN}" \
+            --header 'Content-Type: application/json' \
+            --data '{"draft":false}' "$release_url/$release_id" > /dev/null
