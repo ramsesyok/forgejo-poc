@@ -99,17 +99,35 @@ sha256sum forgejo-15.0.10-linux-amd64 forgejo-15.0.10-linux-amd64.asc forgejo-ru
 
 ## 3. Forgejo本体とサービス
 
+### Forgejo専用のgitユーザーを作成する
+
 `sudo -i`でrootシェルへ入ります。`git`はForgejo専用のLinuxユーザーです。
 
 ```bash
 sudo -i
 groupadd --system git
 useradd --system --create-home --home-dir /home/git --shell /bin/bash --comment 'Git Version Control' --gid git git
+```
+
+### Forgejo本体をインストールする
+
+検証済みのForgejoバイナリを`/usr/local/bin/forgejo`へ配置し、版を確認します。
+
+```bash
 install -m 0755 /home/devops/forgejo-install/forgejo-15.0.10-linux-amd64 /usr/local/bin/forgejo
-install -d -m 0750 -o git -g git /var/lib/forgejo /var/lib/forgejo/data /var/lib/forgejo/log
-install -d -m 0770 -o root -g git /etc/forgejo
 /usr/local/bin/forgejo --version
 ```
+
+### データと設定のディレクトリを作成する
+
+Forgejoのデータ、ログ、設定を置くディレクトリを作成します。所有者と権限は次のコマンドで設定します。
+
+```bash
+install -d -m 0750 -o git -g git /var/lib/forgejo /var/lib/forgejo/data /var/lib/forgejo/log
+install -d -m 0770 -o root -g git /etc/forgejo
+```
+
+### Forgejoの設定ファイルを作成する
 
 rootシェルで`vi /etc/forgejo/app.ini`を開き、次の内容を書きます。`APP_NAME`、`DOMAIN`、`SSH_DOMAIN`、`ROOT_URL`の山括弧付き部分を隔離LAN内の実際の値へ置き換えます。Runnerを別サーバへ置く場合は`DEFAULT_ACTIONS_URL`もRunnerから到達できる内部Forgejo URLへ置き換えます。初回起動でForgejoがトークン類を書き込めるよう、一時的に`0660`とします。
 
@@ -167,6 +185,8 @@ chown root:git /etc/forgejo/app.ini
 chmod 0660 /etc/forgejo/app.ini
 ```
 
+### systemdサービスを登録・起動する
+
 Forgejo 15.0.10タグの[公式配布`forgejo.service`](https://codeberg.org/forgejo/forgejo/raw/tag/v15.0.10/contrib/systemd/forgejo.service)を変更せず配置します。準備端末から搬入したファイルが空でないこと、ユニットに`User=git`と`ExecStart=/usr/local/bin/forgejo web --config /etc/forgejo/app.ini`があること、SHA-256が準備端末で記録した値と一致することを確認します。
 
 ```bash
@@ -181,6 +201,8 @@ systemctl daemon-reload
 systemctl enable --now forgejo.service
 systemctl is-active forgejo.service
 ```
+
+### 初回起動後の秘密値と権限を確認する
 
 初回起動で`INTERNAL_TOKEN`、`LFS_JWT_SECRET`、`[oauth2] JWT_SECRET`が設定に生成されているか確認します。次の確認コマンドは**値を表示しません**。`INSTALL_LOCK = true`が1行だけあることも確認します。`SECRET_KEY`が既にあれば生成処理は行わず、ファイル権限の調整へ進みます。なければ続く生成処理を一度だけ実行します。
 
@@ -212,7 +234,11 @@ systemctl start forgejo.service
 systemctl is-active forgejo.service
 ```
 
-`app.ini`とSQLite DBの秘密情報はGitへ追加しません。firewalldは有効のまま3000/tcpを許可し、SSHの許可を保持します。`firewall-cmd --get-active-zones`で対象NICのゾーンを確認し、以下の`<隔離LANのゾーン名>`をその値へ置き換えます。`public`などのゾーン名を決め打ちしません。[RHEL 8のfirewalldゾーン手順](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/8/html/securing_networks/using-and-configuring-firewalld_securing-networks)
+`app.ini`とSQLite DBの秘密情報はGitへ追加しません。
+
+### ファイアウォールを設定する
+
+firewalldは有効のまま3000/tcpを許可し、SSHの許可を保持します。`firewall-cmd --get-active-zones`で対象NICのゾーンを確認し、以下の`<隔離LANのゾーン名>`をその値へ置き換えます。`public`などのゾーン名を決め打ちしません。[RHEL 8のfirewalldゾーン手順](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/8/html/securing_networks/using-and-configuring-firewalld_securing-networks)
 
 ```bash
 firewall-cmd --get-active-zones
