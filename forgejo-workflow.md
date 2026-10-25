@@ -11,7 +11,7 @@
 既存のソースと Git の履歴を引き継ぐ場合は、Forgejo の移行機能を使えます。ただし、**現在の検証 VM では** `[repository] DISABLE_MIGRATIONS = true` のため、移行画面を利用できません。次の順序で準備します。
 
 1. Forgejo サーバから移行元 GitLab へ到達できることを確認します。非公開リポジトリや Issue などの情報も移す場合は、移行元で必要な権限を持つアクセストークンを用意します。
-2. 管理者が `/etc/forgejo/app.ini` の該当値を次のように一時変更し、Forgejo を再起動します。`ALLOWED_DOMAINS` の山括弧付き部分は実際の GitLab ホスト名へ置き換えます。プライベート IP アドレスへ直接接続する場合は、`[migrations] ALLOW_LOCALNETWORKS` の設定も確認します。[Forgejo 15.0 の設定一覧](https://forgejo.org/docs/v15.0/admin/config-cheat-sheet/)
+2. 管理者が `/etc/forgejo/app.ini` の該当値を次のように一時変更し、Forgejo を再起動します。`ALLOWED_DOMAINS` の山括弧付き部分は実際の GitLab ホスト名へ置き換えます。プライベート IP アドレスへ直接接続する場合は、`[migrations] ALLOW_LOCALNETWORKS` の設定も確認します。一度だけの移行では、`[mirror] ENABLED = false` を変更する必要はありません。[Forgejo 15.0 の設定一覧](https://forgejo.org/docs/v15.0/admin/config-cheat-sheet/)
 
    ```ini
    [repository]

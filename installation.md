@@ -178,6 +178,8 @@ DEFAULT_ACTIONS_URL = http://127.0.0.1:3000
 ROOT_PATH = /var/lib/forgejo/log
 ```
 
+この設定のままでは、`DISABLE_MIGRATIONS = true` により GitLab などからのリポジトリ移行はできません。既存リポジトリを移行する場合は、[ワークフロー導入手順の移行方法](forgejo-workflow.md#既存の-gitlab-などから移行する場合)に従って移行期間だけ変更します。`[mirror] ENABLED = false` は継続的なミラー同期を無効にする設定で、一度だけの移行では変更不要です。
+
 `[repository] DISABLE_HTTP_GIT = false`により、3000/tcpへ到達できるクライアントは`http://<サーバ>:3000/<所有者>/<リポジトリ>.git`でGitのcloneとpushを利用できます。公開リポジトリのcloneは匿名で可能です。非公開リポジトリのcloneとpushには、利用者の認証と対象リポジトリへの権限が必要です。`DISABLE_REGISTRATION = true`は新規の自己登録を止める設定であり、既存ユーザーのGitアクセスは止めません。HTTPでは認証情報が暗号化されないため、実運用では内部HTTPSを推奨します。
 
 ```bash
@@ -474,14 +476,16 @@ jobs:
 
 この節は**Forgejo、Forgejo Runner、Actionsジョブがインターネット上のサービスを参照しないための設定**を確認します。OSやネットワークの隔離方法は扱いません。
 
-`DISABLE_MIGRATIONS = true` はこの検証 VM の通常設定です。既存の GitLab などから一度だけリポジトリを移行する場合は、[ワークフロー導入手順の移行方法](forgejo-workflow.md#既存の-gitlab-などから移行する場合)に従って移行元への接続と設定変更を行います。
+`DISABLE_MIGRATIONS = true` はこの検証 VM の通常設定であり、その間は GitLab などからの移行画面を利用できません。既存リポジトリを一度だけ移行する場合は、[ワークフロー導入手順の移行方法](forgejo-workflow.md#既存の-gitlab-などから移行する場合)に従い、移行元への接続を確認してから一時的に`false`へ変更します。移行後は`true`に戻します。どちらの変更時もForgejoを再起動します。`[mirror] ENABLED = false`は継続同期を止める設定なので、単発移行のために変更する必要はありません。
 
 [Forgejo 15.0設定一覧](https://forgejo.org/docs/v15.0/admin/config-cheat-sheet/)によると、`OFFLINE_MODE = true`はCDNとGravatarの利用を止めます。一方、`[actions] DEFAULT_ACTIONS_URL`の既定値は外部URLで、`[mirror] ENABLED`の既定値は`true`です。[Actions管理者ガイド](https://forgejo.org/docs/v15.0/admin/actions/)によると、相対指定の`uses:`は`DEFAULT_ACTIONS_URL`を基準に解決されます。本文の`app.ini`ではこれらを明示的に内部向けへ変更しています。
 
 | 対象 | 本文で指定する設定と確認内容 |
 |---|---|
 | Forgejoの画面 | `[server] OFFLINE_MODE = true`。`DOMAIN`、`SSH_DOMAIN`、`ROOT_URL`は内部アドレス。 |
-| 外部サービス機能 | `[repository] DISABLE_MIGRATIONS = true`、`[mirror] ENABLED = false`、`[security] DISABLE_WEBHOOKS = true`、`[openid] ENABLE_OPENID_SIGNIN = false`・`ENABLE_OPENID_SIGNUP = false`。外部SMTP、認証先、オブジェクトストレージなどを追加しない。 |
+| リポジトリ移行 | `[repository] DISABLE_MIGRATIONS = true`。通常時は移行機能を無効にする。GitLabなどから一度だけ移行する間は`false`に変更する。 |
+| ミラー同期 | `[mirror] ENABLED = false`。継続的な取得・送信ミラーを無効にする。単発のリポジトリ移行では変更不要。 |
+| その他の外部連携 | `[security] DISABLE_WEBHOOKS = true`、`[openid] ENABLE_OPENID_SIGNIN = false`・`ENABLE_OPENID_SIGNUP = false`。外部SMTP、認証先、オブジェクトストレージなどを追加しない。 |
 | Actionsの取得先 | `[actions] DEFAULT_ACTIONS_URL = http://127.0.0.1:3000`。利用するActionを同じForgejoへ事前に搬入し、ワークフローでは内部リポジトリと版を指定する。 |
 | Runner | `server.connections.local.url = http://127.0.0.1:3000/`、`cache.enabled = false`。Runner自身の接続先を同一サーバのForgejoに限定する。 |
 | ジョブ | `uses:`の絶対URL、Git/LFSリモート、`.gitmodules`、ビルドツールの依存取得先を確認し、内部サービスまたは搬入済みファイルのみ参照する。 |
