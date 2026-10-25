@@ -49,7 +49,7 @@ Forgejo 内の既存リポジトリを組織へ移管する場合も、移管後
 | サンプル | 配置後に確認・調整するもの |
 | --- | --- |
 | [Java WAR](examples/java-war-release-template/README.md) | `runs-on`、`JAVA_HOME`、`MAVEN_HOME`、`WAR_BASENAME`、`DEFAULT_REVISION`、WAR の起動・HTTP 検査、`tools/DB/DDL` |
-| [C++](examples/cpp-release-sample/README.md) | `runs-on`、CMake のビルド設定、`scripts/runtime-libraries.txt`、`start_MP.sh`、`stop_MP.sh` |
+| [C++](examples/cpp-release-sample/README.md) | `runs-on`、CMake のビルド設定、`scripts/runtime-libraries.txt`、`start_cpp.sh`、`stop_cpp.sh` |
 
 両サンプルの `runs-on` は `el8-mydev` です。組織 Runner のラベルを変更した場合はワークフローも合わせます。ソース取得とリリース登録には、実行時に自動発行される `${{ forgejo.token }}` を使います。現在のサンプルでは個人アクセストークン、リポジトリ Secret、Webhook の追加登録は不要です。[Forgejo Actions のトークン仕様](https://forgejo.org/docs/v15.0/user/actions/reference/)
 

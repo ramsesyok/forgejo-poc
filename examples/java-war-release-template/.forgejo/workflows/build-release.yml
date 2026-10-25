@@ -27,7 +27,7 @@ jobs:
       MAVEN_HOME: /opt/forgejo-java-tools/maven
       # push 時の版番号と、Maven が出力する WAR のベース名。
       DEFAULT_REVISION: 0.1.0
-      WAR_BASENAME: planning-api
+      WAR_BASENAME: mywebapp
     steps:
       - name: Download the triggering source commit
         run: |

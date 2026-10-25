@@ -25,21 +25,30 @@ systemctl is-active forgejo forgejo-runner-mydev
 
 ## 3. 組織の画面で Runner を登録する
 
-1. `myproject` の **設定 → Actions → Runners** を開きます。組織の管理権限で操作します。
-2. **Create new runner** を押し、識別しやすい名前（例: `myproject-mydev`）と説明を入力して作成します。
+1. `myproject` の **設定 → Actions → ランナー / Runners** を開きます。組織の管理権限で操作します。
+2. **新しいランナーを作成 / Create new runner** を押し、識別しやすい名前（例: `myproject-mydev`）と説明を入力して作成します。
 3. 表示された **UUID** と **Token** を、この後の Runner 設定に使います。UUID は`runner-config.yml`の`uuid`、Token は`runner-token-myproject`の内容です。Token は秘密情報として扱い、手順書や Git に記載しません。両者を取り違えないよう、画面を閉じる前に次の手順へ進みます。
 
 組織単位の Runner は、その組織が所有するリポジトリを対象にします。組織 Runner の作成場所、UUID・Token の表示、複数接続の設定方法は[Forgejo 15.0 の Runner 登録手順](https://forgejo.org/docs/v15.0/admin/actions/registration/)を参照してください。
 
 ## 4. Token を VM のファイルへ保存する
 
-対象 VM の対話端末で root シェルに入り、画面で表示された Token を入力します。`read -s` は入力を端末に表示せず、`printf` はファイル末尾に改行を追加しません。Token をコマンド文字列に直接書き込まないため、シェル履歴にも残りません。
+対象 VM の対話端末で root シェルに入ります。Forgejo の画面で表示された Token はコピーして貼り付けます。
 
 ```bash
 sudo -i
 umask 077
-read -r -s -p 'myproject Runner Token: ' MYPROJECT_RUNNER_TOKEN
-printf '\n'
+```
+
+次の1行を実行して入力待ちになったら、Token を貼り付けて Enter を押します。入力した文字は画面に表示されるので、UUID との取り違えや貼り付け漏れを確認できます。画面共有や端末のセッション記録に Token が残る可能性があるため、管理者だけが見られる端末で操作します。Token 自体はシェルのコマンド履歴に入りません。
+
+```bash
+read -r -p 'myproject Runner Token (貼り付け): ' MYPROJECT_RUNNER_TOKEN
+```
+
+入力を確認したらファイルへ保存します。`printf` はファイル末尾に改行を追加しません。Token の値はこの確認行では表示しません。
+
+```bash
 printf '%s' "$MYPROJECT_RUNNER_TOKEN" > /home/mydev/runner-token-myproject
 unset MYPROJECT_RUNNER_TOKEN
 chown mydev:mydev /home/mydev/runner-token-myproject
@@ -85,8 +94,8 @@ exit
 
 ## 6. 登録結果を確認する
 
-1. Forgejo の `myproject` **設定 → Actions → Runners** で、`myproject-mydev` がオンラインで、ラベル `el8-mydev` を持つことを確認します。この時点でリポジトリはなくても構いません。
-2. 後から `myproject` にリポジトリを作成または移管したら、そのリポジトリの **設定 → Actions → Runners** に組織 Runner が表示されることを確認します。
+1. Forgejo の `myproject` **設定 → Actions → ランナー / Runners** で、`myproject-mydev` がオンラインで、ラベル `el8-mydev` を持つことを確認します。この時点でリポジトリはなくても構いません。
+2. 後から `myproject` にリポジトリを作成または移管したら、そのリポジトリの **設定 → Actions → ランナー / Runners** に組織 Runner が表示されることを確認します。
 
 次は[リリース用リポジトリとワークフローの導入](forgejo-workflow.md)へ進みます。
 

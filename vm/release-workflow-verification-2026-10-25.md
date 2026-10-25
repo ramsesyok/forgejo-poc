@@ -34,6 +34,8 @@
 | C++ | [`v0.1.0`](http://192.168.131.131:3000/myproject/cpp-release-sample/releases/tag/v0.1.0) | 実行ファイル、`cpp-release-sample-0.1.0-linux-x86_64.zip`、`SHA256SUMS`。ZIPに実行ファイル、`start_MP.sh`、`stop_MP.sh`を確認 |
 | Java WAR | [`v0.1.0`](http://192.168.131.131:3000/myproject/java-war-release-template/releases/tag/v0.1.0) | `planning-api-0.1.0.war`、`dbscript.tar.gz`、`release-0.1.0.zip`、`SHA256SUMS`。ZIPにWARとDDLアーカイブを確認 |
 
+この表は当時の配布物名を記録しています。現在のサンプルでは Java WAR を `mywebapp`、C++ の起動・停止シェルを `start_cpp.sh` と `stop_cpp.sh` に変更しています。
+
 両リリースは公開状態で、管理者としてWebログインしたリリースページがHTTP 200を返し、添付物名が表示された。添付物を再取得し、C++の2行とJavaの3行の`SHA256SUMS`をすべて照合した。Javaの`dbscript.tar.gz`には`dbscript/DDL/schema.sql`があり、`USER/`と`*_devenv.sh`は含まれなかった。
 
 C++サンプルの`runtime-libraries.txt`には実ライブラリの指定がないため、今回のZIPではライブラリのコピー対象はない。実プロジェクトのライブラリ指定とコピー結果は移植時に確認する。

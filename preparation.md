@@ -82,6 +82,7 @@ scp -o StrictHostKeyChecking=yes "${FORGEJO_USER}@${FORGEJO_HOST}:/home/${FORGEJ
 if ($LASTEXITCODE -eq 0 -and (Test-Path -LiteralPath $secretPath -PathType Leaf)) { 'OK: 初期パスワードファイルを保存' } else { throw 'NG: SCPが失敗したか、保存ファイルが見つかりません' }
 $account = whoami
 icacls $secretPath /inheritance:r /grant:r "${account}:F"
+if ($LASTEXITCODE -eq 0) { 'OK: 初期パスワードファイルのACLを設定' } else { throw 'NG: ACLの設定に失敗しました' }
 ```
 
-初期パスワードファイルの確認で`OK`が表示され、`icacls`が成功したことを確認します。サーバ側の一時ファイルを削除するため、[導入手順の第4節](installation.md#4-初期管理者)に戻ります。初回ログイン後に管理者パスワードを変更し、ローカルに保存した初期パスワードも組織の秘密情報管理方針に従って扱います。
+`icacls`の「1 個のファイルが正常に処理されました。0 個のファイルを処理できませんでした」は、**1個のファイルの処理が成功し、失敗は0個**という正常な結果です。続く確認行で`OK`が表示されたら、サーバ側の一時ファイルを削除するため[導入手順の第4節](installation.md#4-初期管理者)に戻ります。初回ログイン後に管理者パスワードを変更し、ローカルに保存した初期パスワードも組織の秘密情報管理方針に従って扱います。
