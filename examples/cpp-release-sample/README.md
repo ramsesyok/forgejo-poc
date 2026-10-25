@@ -10,7 +10,7 @@ Oracle Linux 8 上で CMake と C++17 を使って Linux x86_64 の実行ファ�
 | 2 | `package-release.sh` | 実行ファイル・起動停止シェル・指定されたライブラリを `build/cpp-release-sample/` に集め、ZIP とチェックサムを作る |
 | 3 | `publish-release.sh` | 手動リリース時だけ、完成済みの配布ファイルを Forgejo に添付して公開する |
 
-ワークフローはこの順序でシェルを呼び出します。`start_MP.sh` と `stop_MP.sh` は処理を進めるシェルではなく、ZIP に入れる配布物です。`runtime-libraries.txt` はコピー対象を並べる設定ファイルです。
+ワークフローはこの順序でシェルを呼び出します。`start_cpp.sh` と `stop_cpp.sh` は処理を進めるシェルではなく、ZIP に入れる配布物です。`runtime-libraries.txt` はコピー対象を並べる設定ファイルです。
 
 手元では公開せずに、ビルドと ZIP 作成まで試せます。
 
@@ -18,21 +18,21 @@ Oracle Linux 8 上で CMake と C++17 を使って Linux x86_64 の実行ファ�
 bash scripts/build.sh
 bash scripts/package-release.sh
 ./build/bin/cpp-release-sample --version
-./build/cpp-release-sample/start_MP.sh
+./build/cpp-release-sample/start_cpp.sh
 cmake -E tar tf dist/cpp-release-sample-0.1.0-linux-x86_64.zip
 ```
 
-通常実行では `Hello from Forgejo Actions!`、`--version` では埋め込んだバージョンを表示します。CMake の `BUILD_TESTING` により CTest も実行します。サンプルの実行ファイルはすぐ終了するため、`stop_MP.sh` は停止対象がないことを表示します。実プロジェクトでは両シェルを置き換えます。
+通常実行では `Hello from Forgejo Actions!`、`--version` では埋め込んだバージョンを表示します。CMake の `BUILD_TESTING` により CTest も実行します。サンプルの実行ファイルはすぐ終了するため、`stop_cpp.sh` は停止対象がないことを表示します。実プロジェクトでは両シェルを置き換えます。
 
 ## 配布フォルダ
 
-`package-release.sh` は実行ファイル、`start_MP.sh`、`stop_MP.sh`、README、共有ライブラリを `build/cpp-release-sample/` に集め、このフォルダをそのまま ZIP に収めます。
+`package-release.sh` は実行ファイル、`start_cpp.sh`、`stop_cpp.sh`、README、共有ライブラリを `build/cpp-release-sample/` に集め、このフォルダをそのまま ZIP に収めます。
 
 ```text
 build/cpp-release-sample/
 ├── cpp-release-sample
-├── start_MP.sh
-├── stop_MP.sh
+├── start_cpp.sh
+├── stop_cpp.sh
 ├── README.md
 └── lib/
 ```

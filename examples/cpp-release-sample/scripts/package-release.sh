@@ -28,7 +28,7 @@ if [ ! -x "$binary" ]; then
   echo "Missing build output: $binary (run bash scripts/build.sh first)" >&2
   exit 1
 fi
-for required in "$library_list" README.md start_MP.sh stop_MP.sh; do
+for required in "$library_list" README.md start_cpp.sh stop_cpp.sh; do
   if [ ! -f "$required" ]; then
     echo "Missing release input: $required" >&2
     exit 1
@@ -39,8 +39,8 @@ done
 rm -rf -- "$stage"
 mkdir -p "$stage/lib"
 cp -- "$binary" README.md "$stage/"
-cp -P -- start_MP.sh stop_MP.sh "$stage/"
-chmod +x "$stage/start_MP.sh" "$stage/stop_MP.sh"
+cp -P -- start_cpp.sh stop_cpp.sh "$stage/"
+chmod +x "$stage/start_cpp.sh" "$stage/stop_cpp.sh"
 
 # 3. 設定ファイルの各行を展開し、必要な共有ライブラリを lib/ にコピーする。
 #    compgen -G は *.so* のようなワイルドカードを実際のファイル名に展開する。

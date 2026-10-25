@@ -12,10 +12,10 @@
     </parent>
 
     <groupId>example.forgejo</groupId>
-    <artifactId>planning-api</artifactId>
+    <artifactId>mywebapp</artifactId>
     <version>${revision}</version>
     <packaging>war</packaging>
-    <name>planning-api</name>
+    <name>mywebapp</name>
     <description>Forgejo Actions WAR and DDL release sample</description>
 
     <properties>
