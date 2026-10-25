@@ -326,20 +326,7 @@ grep -Eq '^      uuid: ([[:xdigit:]]{32}|[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdig
 test "$(awk '/^      uuid:/ { print $2; exit }' /home/mydev/runner-config.yml)" = "$(cat /root/forgejo-mydev-runner-uuid.txt)"
 ```
 
-### UUIDを再取得する場合
-
-通常はこの節を飛ばして次のサービス登録へ進みます。前節の`grep`または`test`が失敗した場合は、Runnerを起動する前に`uuid`の値を確認します。UUID保存ファイルがない場合は、rootシェルで以下を実行して同じRunnerのUUIDを再取得できます。`actions register`は同じシークレットで再実行できます。保存したUUIDを`runner-config.yml`へ設定し、再び`grep`と`test`で確認します。シークレット本文は表示しません。
-
-```bash
-install -m 0600 -o git -g git /home/mydev/runner-token /var/lib/forgejo/runner-secret
-runuser -u git -- /usr/local/bin/forgejo -w /var/lib/forgejo -c /etc/forgejo/app.ini \
-  forgejo-cli actions register --name forgejo-mydev --scope forgejo-admin \
-  --labels el8-mydev --secret-file /var/lib/forgejo/runner-secret \
-  > /root/forgejo-mydev-runner-uuid.txt
-chmod 0600 /root/forgejo-mydev-runner-uuid.txt
-cat /root/forgejo-mydev-runner-uuid.txt
-rm -f /var/lib/forgejo/runner-secret
-```
+`grep`と`test`が両方成功したことを確認してから、サービスの登録へ進みます。
 
 ### Runnerサービスを登録・起動する
 
