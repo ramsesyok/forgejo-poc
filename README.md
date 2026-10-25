@@ -15,7 +15,7 @@
 | --- | --- |
 | [vm/README.md](vm/README.md) | 検証 VM の OS と接続を新しく準備するとき |
 | [preparation.md](preparation.md) | オフライン環境へ持ち込む Forgejo・Runner・RPM を準備するとき |
-| [installation.md](installation.md) | Forgejo と検証 VM を新規構築・再現するとき。ここで登録する `forgejo-admin` ユーザー単位の Runner は基盤検証用 |
+| [installation.md](installation.md) | Forgejo と検証 VM を新規構築・再現するとき。ここでは `forgejo-admin` 所有リポジトリ向けの Runner も登録する |
 | [myproject-runner-registration.md](myproject-runner-registration.md) | 既存の検証 VM に `myproject` 組織向けの Runner 接続を追加するとき |
 | [forgejo-workflow.md](forgejo-workflow.md) | 組織配下にリポジトリを新規作成、または既存の GitLab などから移行し、ワークフローと Actions を動かすとき |
 | [Java WAR サンプル](examples/java-war-release-template/README.md) | WAR、DDL アーカイブ、ZIP の内容を実プロジェクトへ合わせるとき |
