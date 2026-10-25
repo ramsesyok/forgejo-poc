@@ -244,16 +244,23 @@ rm -f /root/forgejo-admin-initial.txt /home/devops/forgejo-admin-initial.txt
 
 ## 5. 検証用ビルドユーザーとユーザー単位Runnerの配置・登録
 
-### ビルドユーザーとRunnerを用意する
+### Forgejo Runnerをインストールする
 
-引き続きrootシェルで操作します。`mydev`はこのプロダクトの手動ビルド用Linuxユーザーです。Runnerサービスとhostジョブも同じユーザーで動かします。`wheel`へ追加せず、パスワードを設定しない初期状態にします。管理者は`sudo -iu mydev`で手動ビルドできます。hostジョブは`mydev`のホームにあるファイルも読めるため、個人用の秘密鍵やパスワードは置きません。
+引き続きrootシェルで操作します。搬入済みのForgejo Runnerバイナリを`/usr/local/bin/forgejo-runner`へ配置し、版を確認します。Runnerの登録とサービス起動は後の節で行います。
 
 ```bash
 install -m 0755 /home/devops/forgejo-install/forgejo-runner-13.2.0-linux-amd64 /usr/local/bin/forgejo-runner
+/usr/local/bin/forgejo-runner --version
+```
+
+### ビルドユーザーを作成する
+
+`mydev`はこのプロダクトの手動ビルド用Linuxユーザーです。Runnerサービスとhostジョブも同じユーザーで動かします。`wheel`へ追加せず、パスワードを設定しない初期状態にします。管理者は`sudo -iu mydev`で手動ビルドできます。hostジョブは`mydev`のホームにあるファイルも読めるため、個人用の秘密鍵やパスワードは置きません。
+
+```bash
 useradd --create-home --home-dir /home/mydev --shell /bin/bash --comment 'Manual and CI build user' mydev
 passwd -l mydev
 install -d -m 0700 -o mydev -g mydev /home/mydev/runner-work
-/usr/local/bin/forgejo-runner --version
 id mydev
 runuser -l mydev -c 'whoami; pwd'
 ```
