@@ -256,7 +256,7 @@ id mydev
 runuser -l mydev -c 'whoami; pwd'
 ```
 
-サーバ内で40桁の登録シークレットを生成します。`printf`を使い、ファイル末尾に改行を入れません。`--scope forgejo-admin`を必ず指定し、インスタンス全体には登録しません。[Forgejo CLI](https://forgejo.org/docs/v15.0/admin/command-line/)の`actions register`が出力する**UUID**を控えます。40桁の登録シークレットは`uuid`ではなく、`token_url`が参照するファイルの内容です。シークレットは表示しません。
+サーバ内で40桁の登録シークレットを生成します。`printf`を使い、ファイル末尾に改行を入れません。`--scope forgejo-admin`を必ず指定し、インスタンス全体には登録しません。[Forgejo CLI](https://forgejo.org/docs/v15.0/admin/command-line/)の`actions register`が返す**UUID**は`/root/forgejo-mydev-runner-uuid.txt`へ保存します。40桁の登録シークレットは`uuid`ではなく、`token_url`が参照するファイルの内容です。シークレットは表示しません。
 
 ```bash
 umask 077
@@ -267,12 +267,16 @@ chown git:git /var/lib/forgejo/runner-secret
 unset secret
 runuser -u git -- /usr/local/bin/forgejo -w /var/lib/forgejo -c /etc/forgejo/app.ini \
   forgejo-cli actions register --name forgejo-mydev --scope forgejo-admin \
-  --labels el8-mydev --secret-file /var/lib/forgejo/runner-secret
+  --labels el8-mydev --secret-file /var/lib/forgejo/runner-secret \
+  > /root/forgejo-mydev-runner-uuid.txt
+chmod 0600 /root/forgejo-mydev-runner-uuid.txt
+grep -Eq '^([[:xdigit:]]{32}|[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12})$' /root/forgejo-mydev-runner-uuid.txt
+cat /root/forgejo-mydev-runner-uuid.txt
 install -m 0600 -o mydev -g mydev /var/lib/forgejo/runner-secret /home/mydev/runner-token
 rm -f /var/lib/forgejo/runner-secret
 ```
 
-rootシェルで`vi /home/mydev/runner-config.yml`を開き、次の内容を書く。`uuid`は直前のCLI出力へ**必ず置換**する。40桁の登録シークレットを貼らない。`token_url`で`0600`の秘密ファイルを参照し、設定ファイルにトークン本文を書かない。[Runner設定](https://forgejo.org/docs/v15.0/admin/actions/configuration/)の`host`ラベルはコンテナなしの実行方式です。
+rootシェルで`vi /home/mydev/runner-config.yml`を開き、次の内容を書く。`uuid`は保存した`/root/forgejo-mydev-runner-uuid.txt`の値へ**必ず置換**する。40桁の登録シークレットを貼らない。`token_url`で`0600`の秘密ファイルを参照し、設定ファイルにトークン本文を書かない。[Runner設定](https://forgejo.org/docs/v15.0/admin/actions/configuration/)の`host`ラベルはコンテナなしの実行方式です。
 
 `forgejo-runner-mydev.service`の`WorkingDirectory=/home/mydev`は**デーモンの起動ディレクトリ**です。ジョブの作業ディレクトリの親は下記`host.workdir_parent: /home/mydev/runner-work`で指定します。ジョブ固有の子ディレクトリと`FORGEJO_WORKSPACE`の実際の値はジョブ実行時に決まります。[Forgejo Actionsの参照資料](https://forgejo.org/docs/v15.0/user/actions/reference/)では`FORGEJO_WORKSPACE`をステップの既定作業ディレクトリとしています。`working-directory`の指定やステップ内の`cd`で移動できます。
 
@@ -300,15 +304,19 @@ server:
 chown mydev:mydev /home/mydev/runner-config.yml
 chmod 0600 /home/mydev/runner-config.yml
 grep -Eq '^      uuid: ([[:xdigit:]]{32}|[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12})$' /home/mydev/runner-config.yml
+test "$(awk '/^      uuid:/ { print $2; exit }' /home/mydev/runner-config.yml)" = "$(cat /root/forgejo-mydev-runner-uuid.txt)"
 ```
 
-最後の`grep`が失敗した場合は、Runnerを起動する前に`uuid`の値を確認します。CLIの出力を控え忘れた場合は、rootシェルで以下を実行して同じRunnerのUUIDを再表示できます。`actions register`は同じシークレットで再実行できます。表示されたUUIDを`runner-config.yml`へ設定し、再び`grep`で確認します。シークレット本文は表示しません。
+最後の`grep`または`test`が失敗した場合は、Runnerを起動する前に`uuid`の値を確認します。UUID保存ファイルがない場合は、rootシェルで以下を実行して同じRunnerのUUIDを再取得できます。`actions register`は同じシークレットで再実行できます。保存したUUIDを`runner-config.yml`へ設定し、再び`grep`と`test`で確認します。シークレット本文は表示しません。
 
 ```bash
 install -m 0600 -o git -g git /home/mydev/runner-token /var/lib/forgejo/runner-secret
 runuser -u git -- /usr/local/bin/forgejo -w /var/lib/forgejo -c /etc/forgejo/app.ini \
   forgejo-cli actions register --name forgejo-mydev --scope forgejo-admin \
-  --labels el8-mydev --secret-file /var/lib/forgejo/runner-secret
+  --labels el8-mydev --secret-file /var/lib/forgejo/runner-secret \
+  > /root/forgejo-mydev-runner-uuid.txt
+chmod 0600 /root/forgejo-mydev-runner-uuid.txt
+cat /root/forgejo-mydev-runner-uuid.txt
 rm -f /var/lib/forgejo/runner-secret
 ```
 
@@ -365,11 +373,11 @@ FORGEJO_HOST='forgejo.internal.example'
 ssh "devops@${FORGEJO_HOST}" 'cat /etc/os-release; getenforce; systemctl is-active forgejo forgejo-runner-mydev sshd firewalld'
 ```
 
-対象サーバで次もrootとして確認します。`app.ini`は`root:git 640`、Runnerの設定とトークンは`mydev:mydev 600`を期待します。秘密値そのものは表示しません。`<隔離LANのゾーン名>`は手順3で確認した値へ置き換えます。
+対象サーバで次もrootとして確認します。`app.ini`は`root:git 640`、Runnerの設定とトークンは`mydev:mydev 600`、保存したUUIDは`root:root 600`を期待します。秘密値そのものは表示しません。`<隔離LANのゾーン名>`は手順3で確認した値へ置き換えます。
 
 ```bash
 systemctl is-enabled forgejo forgejo-runner-mydev
-stat -c '%U:%G %a %n' /etc/forgejo/app.ini /home/mydev/runner-config.yml /home/mydev/runner-token
+stat -c '%U:%G %a %n' /etc/forgejo/app.ini /home/mydev/runner-config.yml /home/mydev/runner-token /root/forgejo-mydev-runner-uuid.txt
 firewall-cmd --zone=<隔離LANのゾーン名> --list-all
 journalctl -u forgejo-runner-mydev.service -n 30 --no-pager
 ```
