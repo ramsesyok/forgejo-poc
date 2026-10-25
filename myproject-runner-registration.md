@@ -4,6 +4,8 @@ Forgejo に組織 `myproject` を作成し、組織内のリポジトリで利�
 
 この手順では、稼働中の `forgejo-runner-mydev.service` に `myproject` 用の接続を追加します。既存の `forgejo-admin` ユーザー単位の接続は残します。ジョブはどちらの接続から受けても `mydev` ユーザーでホスト上に実行され、Runner のラベルは既存の `el8-mydev:host` を共有します。組織のリポジトリにワークフローを書ける人がこの環境でジョブを実行できるため、`myproject` のメンバーとリポジトリの書き込み権限を先に決めてください。
 
+確認用の行は1行ずつ実行し、`OK`を見てから次へ進みます。`NG`が出たら作業を止めて原因を確認します。
+
 ## 1. 現在の Runner を確認する
 
 対象 VM でサービスが稼働していることを確認します。以降のサーバ操作には管理ユーザーの `sudo` 権限が必要です。
@@ -42,7 +44,7 @@ printf '%s' "$MYPROJECT_RUNNER_TOKEN" > /home/mydev/runner-token-myproject
 unset MYPROJECT_RUNNER_TOKEN
 chown mydev:mydev /home/mydev/runner-token-myproject
 chmod 0600 /home/mydev/runner-token-myproject
-test -s /home/mydev/runner-token-myproject
+if test -s /home/mydev/runner-token-myproject; then echo 'OK: 組織Runner Tokenを保存'; else echo 'NG: 組織Runner Tokenがないか空です' >&2; false; fi
 ```
 
 ## 5. Runner 設定へ組織用の接続を追加する
@@ -69,11 +71,10 @@ server:
 ```bash
 chown mydev:mydev /home/mydev/runner-config.yml
 chmod 0600 /home/mydev/runner-config.yml
-awk '/^    myproject:/ { found=1; next } found && /^    [^ ]/ { exit } found && /^      uuid:/ { print $2; exit }' /home/mydev/runner-config.yml |
-  grep -Eq '^([[:xdigit:]]{32}|[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12})$'
+if awk '/^    myproject:/ { found=1; next } found && /^    [^ ]/ { exit } found && /^      uuid:/ { print $2; exit }' /home/mydev/runner-config.yml | grep -Eq '^([[:xdigit:]]{32}|[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12})$'; then echo 'OK: myprojectのUUID形式'; else echo 'NG: myprojectのUUID形式が違います' >&2; false; fi
 ```
 
-最後の確認が失敗した場合は、`myproject`接続の`uuid`を画面に表示されたUUIDへ直してから再実行します。既存の`local`接続のUUIDは変更しません。確認が成功したらサービスを再起動します。
+最後の確認で`NG`が出た場合は、`myproject`接続の`uuid`を画面に表示されたUUIDへ直してから再実行します。既存の`local`接続のUUIDは変更しません。`OK`を確認したらサービスを再起動します。
 
 ```bash
 systemctl restart forgejo-runner-mydev

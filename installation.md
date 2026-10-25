@@ -20,6 +20,8 @@ Linuxユーザーの役割は、`devops`がSSHで入る管理者、`git`がForge
 
 **先に[8. ForgejoとRunnerのオフライン設定](#8-forgejoとrunnerのオフライン設定)を確認します。** OSとネットワークの隔離設定はこの文書の対象外です。内部管理端末からSSH接続し、以降は特記しない限り**対象サーバのシェル**で操作します。`sudo`には管理ユーザーのパスワードが必要です。
 
+確認用の行は1行ずつ実行し、`OK`を見てから次へ進みます。`NG`が出たら原因を確認して作業を止めます。確認に使う`false`は失敗の終了コードを返すためのもので、対話中のシェルは閉じません。コードブロックを一括貼り付けすると、`NG`の後も次の行が実行されるため、確認箇所では結果を見ながら進めてください。
+
 ```bash
 cat /etc/os-release
 uname -m
@@ -28,8 +30,8 @@ df -h /
 getenforce
 systemctl is-active sshd firewalld
 sudo -v
-test ! -e /usr/local/bin/forgejo && echo 'Forgejo未導入'
-test ! -e /usr/local/bin/forgejo-runner && echo 'Runner未導入'
+if test ! -e /usr/local/bin/forgejo; then echo 'OK: Forgejoは未導入'; else echo 'NG: Forgejoが既にあります' >&2; false; fi
+if test ! -e /usr/local/bin/forgejo-runner; then echo 'OK: Runnerは未導入'; else echo 'NG: Runnerが既にあります' >&2; false; fi
 ```
 
 `/etc/os-release`の`ID`と`VERSION_ID`で対象OSと版を確認します。既存のForgejo/Runnerがあるサーバへは、この新規導入手順をそのまま適用しません。変更対象は`/usr/local/bin/forgejo*`、`/var/lib/forgejo`、`/etc/forgejo`、`/home/mydev`、systemdユニットとfirewalldです。
@@ -76,12 +78,12 @@ sudo dnf --disablerepo='*' --enablerepo='<内部リポジトリID>' install -y g
 
 ```bash
 cd "$HOME/forgejo-install"
-test -s forgejo-15.0.10-linux-amd64
-test -s forgejo-15.0.10-linux-amd64.asc
-test -s forgejo-runner-13.2.0-linux-amd64
-test -s forgejo-runner-13.2.0-linux-amd64.asc
-test -s forgejo-release-key.asc
-test -s forgejo.service
+if test -s forgejo-15.0.10-linux-amd64; then echo 'OK: Forgejo本体'; else echo 'NG: Forgejo本体がないか空です' >&2; false; fi
+if test -s forgejo-15.0.10-linux-amd64.asc; then echo 'OK: Forgejo署名'; else echo 'NG: Forgejo署名がないか空です' >&2; false; fi
+if test -s forgejo-runner-13.2.0-linux-amd64; then echo 'OK: Runner本体'; else echo 'NG: Runner本体がないか空です' >&2; false; fi
+if test -s forgejo-runner-13.2.0-linux-amd64.asc; then echo 'OK: Runner署名'; else echo 'NG: Runner署名がないか空です' >&2; false; fi
+if test -s forgejo-release-key.asc; then echo 'OK: Forgejo公開鍵'; else echo 'NG: Forgejo公開鍵がないか空です' >&2; false; fi
+if test -s forgejo.service; then echo 'OK: systemdユニット'; else echo 'NG: systemdユニットがないか空です' >&2; false; fi
 mkdir -m 700 "$HOME/forgejo-install/gnupg"
 gpg --homedir "$HOME/forgejo-install/gnupg" --import forgejo-release-key.asc
 gpg --homedir "$HOME/forgejo-install/gnupg" --fingerprint EB114F5E6C0DC2BCDD183550A4B61A2DC5923710
@@ -192,10 +194,10 @@ chmod 0660 /etc/forgejo/app.ini
 Forgejo 15.0.10タグの[公式配布`forgejo.service`](https://codeberg.org/forgejo/forgejo/raw/tag/v15.0.10/contrib/systemd/forgejo.service)を変更せず配置します。準備端末から搬入したファイルが空でないこと、ユニットに`User=git`と`ExecStart=/usr/local/bin/forgejo web --config /etc/forgejo/app.ini`があること、SHA-256が準備端末で記録した値と一致することを確認します。
 
 ```bash
-test -s /home/devops/forgejo-install/forgejo.service
+if test -s /home/devops/forgejo-install/forgejo.service; then echo 'OK: 搬入したsystemdユニット'; else echo 'NG: 搬入したsystemdユニットがないか空です' >&2; false; fi
 sha256sum /home/devops/forgejo-install/forgejo.service
 install -m 0644 /home/devops/forgejo-install/forgejo.service /etc/systemd/system/forgejo.service
-test -s /etc/systemd/system/forgejo.service
+if test -s /etc/systemd/system/forgejo.service; then echo 'OK: 配置したsystemdユニット'; else echo 'NG: 配置したsystemdユニットがないか空です' >&2; false; fi
 grep -E '^(User=|ExecStart=|Environment=)' /etc/systemd/system/forgejo.service
 sha256sum /etc/systemd/system/forgejo.service
 restorecon -RF /usr/local/bin/forgejo /etc/forgejo /var/lib/forgejo /home/git
@@ -213,7 +215,7 @@ for attempt in $(seq 1 30); do
   test "$(grep -Ec '^(INTERNAL_TOKEN|LFS_JWT_SECRET|JWT_SECRET) *=' /etc/forgejo/app.ini)" -ge 3 && break
   sleep 1
 done
-test "$(grep -Ec '^(INTERNAL_TOKEN|LFS_JWT_SECRET|JWT_SECRET) *=' /etc/forgejo/app.ini)" -ge 3
+if test "$(grep -Ec '^(INTERNAL_TOKEN|LFS_JWT_SECRET|JWT_SECRET) *=' /etc/forgejo/app.ini)" -ge 3; then echo 'OK: 初回起動の秘密値3項目'; else echo 'NG: 秘密値がまだ揃っていません' >&2; false; fi
 grep -E '^(INTERNAL_TOKEN|LFS_JWT_SECRET|JWT_SECRET) *=' /etc/forgejo/app.ini | cut -d= -f1
 grep -n '^INSTALL_LOCK = true$' /etc/forgejo/app.ini
 grep -n '^SECRET_KEY *=' /etc/forgejo/app.ini | cut -d: -f1
@@ -224,7 +226,7 @@ grep -n '^SECRET_KEY *=' /etc/forgejo/app.ini | cut -d: -f1
 ```bash
 systemctl stop forgejo.service
 secret=$(/usr/local/bin/forgejo generate secret SECRET_KEY)
-test -n "$secret"
+if test -n "$secret"; then echo 'OK: SECRET_KEYを生成'; else echo 'NG: SECRET_KEYを生成できません' >&2; false; fi
 sed -i "/^INSTALL_LOCK = true$/a SECRET_KEY = $secret" /etc/forgejo/app.ini
 unset secret
 grep -E '^SECRET_KEY *=' /etc/forgejo/app.ini | cut -d= -f1
@@ -305,12 +307,12 @@ Runnerの接続に使う40文字の登録シークレットを生成し、`/home
 ```bash
 umask 077
 secret=$(runuser -u git -- /usr/local/bin/forgejo -w /var/lib/forgejo -c /etc/forgejo/app.ini forgejo-cli actions generate-secret)
-test "$(printf '%s' "$secret" | wc -c)" -eq 40
+if test "$(printf '%s' "$secret" | wc -c)" -eq 40; then echo 'OK: 登録シークレットは40文字'; else echo 'NG: 登録シークレットの長さが違います' >&2; false; fi
 printf '%s' "$secret" > /var/lib/forgejo/runner-secret
 chown git:git /var/lib/forgejo/runner-secret
 install -m 0600 -o mydev -g mydev /var/lib/forgejo/runner-secret /home/mydev/runner-token
 unset secret
-test "$(wc -c < /home/mydev/runner-token)" -eq 40
+if test "$(wc -c < /home/mydev/runner-token)" -eq 40; then echo 'OK: 保存した登録シークレットは40文字'; else echo 'NG: 保存した登録シークレットの長さが違います' >&2; false; fi
 ```
 
 ### Runnerを登録してUUIDを保存する
@@ -323,7 +325,7 @@ runuser -u git -- /usr/local/bin/forgejo -w /var/lib/forgejo -c /etc/forgejo/app
   --labels el8-mydev --secret-file /var/lib/forgejo/runner-secret \
   > /root/forgejo-mydev-runner-uuid.txt
 chmod 0600 /root/forgejo-mydev-runner-uuid.txt
-grep -Eq '^([[:xdigit:]]{32}|[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12})$' /root/forgejo-mydev-runner-uuid.txt
+if grep -Eq '^([[:xdigit:]]{32}|[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12})$' /root/forgejo-mydev-runner-uuid.txt; then echo 'OK: Runner UUIDの形式'; else echo 'NG: Runner UUIDの形式が違います' >&2; false; fi
 cat /root/forgejo-mydev-runner-uuid.txt
 ```
 
@@ -362,11 +364,11 @@ server:
 ```bash
 chown mydev:mydev /home/mydev/runner-config.yml
 chmod 0600 /home/mydev/runner-config.yml
-grep -Eq '^      uuid: ([[:xdigit:]]{32}|[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12})$' /home/mydev/runner-config.yml
-test "$(awk '/^      uuid:/ { print $2; exit }' /home/mydev/runner-config.yml)" = "$(cat /root/forgejo-mydev-runner-uuid.txt)"
+if grep -Eq '^      uuid: ([[:xdigit:]]{32}|[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12})$' /home/mydev/runner-config.yml; then echo 'OK: 設定ファイルのUUID形式'; else echo 'NG: 設定ファイルのUUID形式が違います' >&2; false; fi
+if test "$(awk '/^      uuid:/ { print $2; exit }' /home/mydev/runner-config.yml)" = "$(cat /root/forgejo-mydev-runner-uuid.txt)"; then echo 'OK: 登録UUIDと設定UUIDが一致'; else echo 'NG: 登録UUIDと設定UUIDが一致しません' >&2; false; fi
 ```
 
-`grep`と`test`が両方成功したことを確認してから、サービスの登録へ進みます。
+UUID形式と一致確認の両方で`OK`が出てから、サービスの登録へ進みます。
 
 ### Runnerサービスを登録・起動する
 
@@ -450,10 +452,10 @@ jobs:
           pwd
           printf '%s\n' "$FORGEJO_WORKSPACE"
           cat /etc/os-release
-          test "$(whoami)" = mydev
-          test -w "$FORGEJO_WORKSPACE"
+          if test "$(whoami)" = mydev; then echo 'OK: mydevで実行'; else echo 'NG: 実行ユーザーがmydevではありません' >&2; exit 1; fi
+          if test -w "$FORGEJO_WORKSPACE"; then echo 'OK: ワークスペースに書き込み可能'; else echo 'NG: ワークスペースに書き込めません' >&2; exit 1; fi
           printf 'built by %s\n' "$(whoami)" > build-artifact.txt
-          test -s build-artifact.txt
+          if test -s build-artifact.txt; then echo 'OK: ビルド確認ファイル'; else echo 'NG: ビルド確認ファイルがありません' >&2; exit 1; fi
           printf 'user=%s\nworkspace=%s\n' "$(whoami)" "$FORGEJO_WORKSPACE" > /home/mydev/runner-work/identity-check.txt
 ```
 

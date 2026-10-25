@@ -79,9 +79,9 @@ $secretDir = Join-Path $HOME '.ssh'
 New-Item -ItemType Directory -Force -Path $secretDir | Out-Null
 $secretPath = Join-Path $secretDir 'forgejo-admin-initial.txt'
 scp -o StrictHostKeyChecking=yes "${FORGEJO_USER}@${FORGEJO_HOST}:/home/${FORGEJO_USER}/forgejo-admin-initial.txt" "$secretPath"
-Test-Path -Path $secretPath
+if ($LASTEXITCODE -eq 0 -and (Test-Path -LiteralPath $secretPath -PathType Leaf)) { 'OK: 初期パスワードファイルを保存' } else { throw 'NG: SCPが失敗したか、保存ファイルが見つかりません' }
 $account = whoami
 icacls $secretPath /inheritance:r /grant:r "${account}:F"
 ```
 
-`Test-Path`が`True`を返し、`icacls`が成功したことを確認します。サーバ側の一時ファイルを削除するため、[導入手順の第4節](installation.md#4-初期管理者)に戻ります。初回ログイン後に管理者パスワードを変更し、ローカルに保存した初期パスワードも組織の秘密情報管理方針に従って扱います。
+初期パスワードファイルの確認で`OK`が表示され、`icacls`が成功したことを確認します。サーバ側の一時ファイルを削除するため、[導入手順の第4節](installation.md#4-初期管理者)に戻ります。初回ログイン後に管理者パスワードを変更し、ローカルに保存した初期パスワードも組織の秘密情報管理方針に従って扱います。
