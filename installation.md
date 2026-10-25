@@ -206,9 +206,14 @@ systemctl is-active forgejo.service
 
 ### 初回起動後の秘密値と権限を確認する
 
-初回起動で`INTERNAL_TOKEN`、`LFS_JWT_SECRET`、`[oauth2] JWT_SECRET`が設定に生成されているか確認します。次の確認コマンドは**値を表示しません**。`INSTALL_LOCK = true`が1行だけあることも確認します。`SECRET_KEY`が既にあれば生成処理は行わず、ファイル権限の調整へ進みます。なければ続く生成処理を一度だけ実行します。
+初回起動で`INTERNAL_TOKEN`、`LFS_JWT_SECRET`、`[oauth2] JWT_SECRET`が設定に生成されているか確認します。サービスが`active`になった直後は生成が終わっていない場合があるため、次のコマンドで最大30秒待ちます。3項目が揃わなければForgejoのログを確認し、次へ進みません。確認コマンドは**値を表示しません**。`INSTALL_LOCK = true`が1行だけあることも確認します。`SECRET_KEY`が既にあれば生成処理は行わず、ファイル権限の調整へ進みます。なければ続く生成処理を一度だけ実行します。
 
 ```bash
+for attempt in $(seq 1 30); do
+  test "$(grep -Ec '^(INTERNAL_TOKEN|LFS_JWT_SECRET|JWT_SECRET) *=' /etc/forgejo/app.ini)" -ge 3 && break
+  sleep 1
+done
+test "$(grep -Ec '^(INTERNAL_TOKEN|LFS_JWT_SECRET|JWT_SECRET) *=' /etc/forgejo/app.ini)" -ge 3
 grep -E '^(INTERNAL_TOKEN|LFS_JWT_SECRET|JWT_SECRET) *=' /etc/forgejo/app.ini | cut -d= -f1
 grep -n '^INSTALL_LOCK = true$' /etc/forgejo/app.ini
 grep -n '^SECRET_KEY *=' /etc/forgejo/app.ini | cut -d: -f1

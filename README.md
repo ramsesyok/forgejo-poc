@@ -25,4 +25,4 @@
 
 現行 VM では `forgejo-admin` ユーザー単位の Runner と、同ユーザーが所有するサンプルリポジトリを先に検証しました。これらは `myproject` 組織の Runner やリリース用リポジトリへ自動では切り替わりません。今回の構築では、既存 Runner サービスに**組織向けの登録を追加**してから、組織が所有するリポジトリを用意します。
 
-[VM 導入の検証記録](vm/installation-verification.md)、[Java JAR サンプルの検証記録](vm/java-release-verification.md)、[初期 C++ サンプルの検証記録](vm/cpp-release-verification.md)は、実施時点の結果を残した資料です。現在のリリース手順は上の導入文書と各サンプルの README を参照してください。
+[myproject のリリース再検証記録](vm/release-workflow-verification-2026-10-25.md)、[VM 導入の検証記録](vm/installation-verification.md)、[Java JAR サンプルの検証記録](vm/java-release-verification.md)、[初期 C++ サンプルの検証記録](vm/cpp-release-verification.md)は、実施時点の結果を残した資料です。現在のリリース手順は上の導入文書と各サンプルの README を参照してください。
