@@ -26,3 +26,22 @@
 現行 VM では `forgejo-admin` ユーザー単位の Runner と、同ユーザーが所有するサンプルリポジトリを先に検証しました。これらは `myproject` 組織の Runner やリリース用リポジトリへ自動では切り替わりません。今回の構築では、既存 Runner サービスに**組織向けの登録を追加**してから、組織が所有するリポジトリを用意します。
 
 [myproject のリリース再検証記録](vm/release-workflow-verification-2026-10-25.md)、[VM 導入の検証記録](vm/installation-verification.md)、[Java JAR サンプルの検証記録](vm/java-release-verification.md)、[初期 C++ サンプルの検証記録](vm/cpp-release-verification.md)は、実施時点の結果を残した資料です。現在のリリース手順は上の導入文書と各サンプルの README を参照してください。
+
+## リリースページの再確認（2026-10-25）
+
+検証 VM を「OS準備完了」に復元し、[配布物の準備](preparation.md)、[Forgejo の導入](installation.md)、[組織 Runner の登録](myproject-runner-registration.md)、[ワークフローの導入](forgejo-workflow.md)の順に再確認しました。`myproject` の非公開リポジトリに現在の C++・Java WAR サンプルをそれぞれ配置し、`main` への push と Actions からの `v0.1.0` 手動リリースが両方成功しました。組織・リポジトリ・Runner の登録と Actions の起動には、画面操作に相当する Forgejo API も使用しています。
+
+| リポジトリ | リリースページ | 確認した配布物 |
+| --- | --- | --- |
+| [C++](http://192.168.131.131:3000/myproject/cpp-release-sample/releases/tag/v0.1.0) | `v0.1.0` | 実行ファイル、ZIP、`SHA256SUMS`。ZIP 内に `start_cpp.sh` と `stop_cpp.sh` |
+| [Java WAR](http://192.168.131.131:3000/myproject/java-war-release-template/releases/tag/v0.1.0) | `v0.1.0` | `mywebapp-0.1.0.war`、`dbscript.tar.gz`、ZIP、`SHA256SUMS` |
+
+両リリースは公開状態で、添付ファイルの SHA-256 と ZIP の内容を確認しました。以下は管理者として表示したリリースページです。リンク先は検証 VM のアドレスで、接続できる環境から閲覧できます。
+
+### C++ リリース
+
+![myproject/cpp-release-sample の v0.1.0 リリースページ](images/cpp-release-v0.1.0.jpg)
+
+### Java WAR リリース
+
+![myproject/java-war-release-template の v0.1.0 リリースページ](images/java-war-release-v0.1.0.jpg)
