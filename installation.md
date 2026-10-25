@@ -244,6 +244,8 @@ rm -f /root/forgejo-admin-initial.txt /home/devops/forgejo-admin-initial.txt
 
 ## 5. 検証用ビルドユーザーとユーザー単位Runnerの配置・登録
 
+### ビルドユーザーとRunnerを用意する
+
 引き続きrootシェルで操作します。`mydev`はこのプロダクトの手動ビルド用Linuxユーザーです。Runnerサービスとhostジョブも同じユーザーで動かします。`wheel`へ追加せず、パスワードを設定しない初期状態にします。管理者は`sudo -iu mydev`で手動ビルドできます。hostジョブは`mydev`のホームにあるファイルも読めるため、個人用の秘密鍵やパスワードは置きません。
 
 ```bash
@@ -256,7 +258,9 @@ id mydev
 runuser -l mydev -c 'whoami; pwd'
 ```
 
-サーバ内で40桁の登録シークレットを生成します。`printf`を使い、ファイル末尾に改行を入れません。`--scope forgejo-admin`を必ず指定し、インスタンス全体には登録しません。[Forgejo CLI](https://forgejo.org/docs/v15.0/admin/command-line/)の`actions register`が返す**UUID**は`/root/forgejo-mydev-runner-uuid.txt`へ保存します。40桁の登録シークレットは`uuid`ではなく、`token_url`が参照するファイルの内容です。シークレットは表示しません。
+### 登録シークレットを作成・保存する
+
+Runnerの接続に使う40文字の登録シークレットを生成し、`/home/mydev/runner-token`に保存します。Forgejoへ登録する際、`git`ユーザーが読めるよう`/var/lib/forgejo/runner-secret`にも一時保存します。`printf`を使い、ファイル末尾に改行を入れません。シークレットの内容は表示しません。この40文字は次の手順で取得するUUIDとは別の値です。
 
 ```bash
 umask 077
@@ -264,7 +268,16 @@ secret=$(runuser -u git -- /usr/local/bin/forgejo -w /var/lib/forgejo -c /etc/fo
 test "$(printf '%s' "$secret" | wc -c)" -eq 40
 printf '%s' "$secret" > /var/lib/forgejo/runner-secret
 chown git:git /var/lib/forgejo/runner-secret
+install -m 0600 -o mydev -g mydev /var/lib/forgejo/runner-secret /home/mydev/runner-token
 unset secret
+test "$(wc -c < /home/mydev/runner-token)" -eq 40
+```
+
+### Runnerを登録してUUIDを保存する
+
+`--scope forgejo-admin`を指定し、インスタンス全体には登録しません。[Forgejo CLI](https://forgejo.org/docs/v15.0/admin/command-line/)の`actions register`が返すUUIDを`/root/forgejo-mydev-runner-uuid.txt`に保存します。形式を確認してから表示します。登録シークレットそのものは表示しません。
+
+```bash
 runuser -u git -- /usr/local/bin/forgejo -w /var/lib/forgejo -c /etc/forgejo/app.ini \
   forgejo-cli actions register --name forgejo-mydev --scope forgejo-admin \
   --labels el8-mydev --secret-file /var/lib/forgejo/runner-secret \
@@ -272,9 +285,15 @@ runuser -u git -- /usr/local/bin/forgejo -w /var/lib/forgejo -c /etc/forgejo/app
 chmod 0600 /root/forgejo-mydev-runner-uuid.txt
 grep -Eq '^([[:xdigit:]]{32}|[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12})$' /root/forgejo-mydev-runner-uuid.txt
 cat /root/forgejo-mydev-runner-uuid.txt
-install -m 0600 -o mydev -g mydev /var/lib/forgejo/runner-secret /home/mydev/runner-token
+```
+
+UUIDが取得できたら、登録時だけ使った`git`ユーザー用の一時ファイルを削除します。Runnerが使う`/home/mydev/runner-token`は残します。
+
+```bash
 rm -f /var/lib/forgejo/runner-secret
 ```
+
+### Runner設定ファイルを作成する
 
 rootシェルで`vi /home/mydev/runner-config.yml`を開き、次の内容を書く。`uuid`は保存した`/root/forgejo-mydev-runner-uuid.txt`の値へ**必ず置換**する。40桁の登録シークレットを貼らない。`token_url`で`0600`の秘密ファイルを参照し、設定ファイルにトークン本文を書かない。[Runner設定](https://forgejo.org/docs/v15.0/admin/actions/configuration/)の`host`ラベルはコンテナなしの実行方式です。
 
@@ -307,7 +326,9 @@ grep -Eq '^      uuid: ([[:xdigit:]]{32}|[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdig
 test "$(awk '/^      uuid:/ { print $2; exit }' /home/mydev/runner-config.yml)" = "$(cat /root/forgejo-mydev-runner-uuid.txt)"
 ```
 
-最後の`grep`または`test`が失敗した場合は、Runnerを起動する前に`uuid`の値を確認します。UUID保存ファイルがない場合は、rootシェルで以下を実行して同じRunnerのUUIDを再取得できます。`actions register`は同じシークレットで再実行できます。保存したUUIDを`runner-config.yml`へ設定し、再び`grep`と`test`で確認します。シークレット本文は表示しません。
+### UUIDを再取得する場合
+
+通常はこの節を飛ばして次のサービス登録へ進みます。前節の`grep`または`test`が失敗した場合は、Runnerを起動する前に`uuid`の値を確認します。UUID保存ファイルがない場合は、rootシェルで以下を実行して同じRunnerのUUIDを再取得できます。`actions register`は同じシークレットで再実行できます。保存したUUIDを`runner-config.yml`へ設定し、再び`grep`と`test`で確認します。シークレット本文は表示しません。
 
 ```bash
 install -m 0600 -o git -g git /home/mydev/runner-token /var/lib/forgejo/runner-secret
@@ -319,6 +340,8 @@ chmod 0600 /root/forgejo-mydev-runner-uuid.txt
 cat /root/forgejo-mydev-runner-uuid.txt
 rm -f /var/lib/forgejo/runner-secret
 ```
+
+### Runnerサービスを登録・起動する
 
 rootシェルで`vi /etc/systemd/system/forgejo-runner-mydev.service`を開き、次のユニットを書く。
 
@@ -355,6 +378,8 @@ systemctl is-active forgejo-runner-mydev.service
 journalctl -u forgejo-runner-mydev.service -n 30 --no-pager
 exit
 ```
+
+### 登録範囲と稼働状態を確認する
 
 ログに`declared successfully`、`labels: [el8-mydev]`、`[poller] launched`が出ることを確認します。**上記の登録コマンドで`--scope forgejo-admin`を指定したため、このRunnerは`forgejo-admin`ユーザー単位で登録されています。追加の対象設定は不要です。** 対象は`forgejo-admin`自身が所有するリポジトリのワークフローで、管理権限を持つだけの別ユーザー・組織のリポジトリは含みません。[Runner登録ガイド](https://forgejo.org/docs/v15.0/admin/actions/registration/) Web画面では`forgejo-admin`でログインし、ユーザー設定の`Actions > Runners`でオンライン状態を確認できます。
 
