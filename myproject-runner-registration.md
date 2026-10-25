@@ -25,7 +25,7 @@ systemctl is-active forgejo forgejo-runner-mydev
 
 1. `myproject` の **設定 → Actions → Runners** を開きます。組織の管理権限で操作します。
 2. **Create new runner** を押し、識別しやすい名前（例: `myproject-mydev`）と説明を入力して作成します。
-3. 表示された **UUID** と **Token** を、この後の Runner 設定に使います。Token は秘密情報として扱い、手順書や Git に記載しません。画面を閉じる前に次の手順へ進みます。
+3. 表示された **UUID** と **Token** を、この後の Runner 設定に使います。UUID は`runner-config.yml`の`uuid`、Token は`runner-token-myproject`の内容です。Token は秘密情報として扱い、手順書や Git に記載しません。両者を取り違えないよう、画面を閉じる前に次の手順へ進みます。
 
 組織単位の Runner は、その組織が所有するリポジトリを対象にします。組織 Runner の作成場所、UUID・Token の表示、複数接続の設定方法は[Forgejo 15.0 の Runner 登録手順](https://forgejo.org/docs/v15.0/admin/actions/registration/)を参照してください。
 
@@ -69,6 +69,13 @@ server:
 ```bash
 chown mydev:mydev /home/mydev/runner-config.yml
 chmod 0600 /home/mydev/runner-config.yml
+awk '/^    myproject:/ { found=1; next } found && /^    [^ ]/ { exit } found && /^      uuid:/ { print $2; exit }' /home/mydev/runner-config.yml |
+  grep -Eq '^([[:xdigit:]]{32}|[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12})$'
+```
+
+最後の確認が失敗した場合は、`myproject`接続の`uuid`を画面に表示されたUUIDへ直してから再実行します。既存の`local`接続のUUIDは変更しません。確認が成功したらサービスを再起動します。
+
+```bash
 systemctl restart forgejo-runner-mydev
 systemctl is-active forgejo-runner-mydev
 journalctl -u forgejo-runner-mydev -n 30 --no-pager
