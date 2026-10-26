@@ -21,5 +21,5 @@ if(BUILD_TESTING)
     set_tests_properties(greeting PROPERTIES PASS_REGULAR_EXPRESSION "Hello from Forgejo Actions!")
 
     add_test(NAME version COMMAND cpp-release-sample --version)
-    # build.sh compares the complete --version output; CTest checks that it runs successfully.
+    # The workflow compares the complete --version output; CTest checks that it runs successfully.
 endif()

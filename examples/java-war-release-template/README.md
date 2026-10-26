@@ -20,7 +20,7 @@ java -jar target/mywebapp-0.1.0.war --server.port=18081
 ## 実行
 
 - `main` への push: 対象コミットのソースを Forgejo API から取得し、`DEFAULT_REVISION` で `mvn clean package` を実行します。Maven テストと、実行可能 WAR の `/hello` 応答を確認します。リリースは作りません。
-- 手動リリース: Actions でこのワークフローを `main` から実行し、`tag` にタグ名を入力します。ワークフローではタグ名の形式を検査しません。先頭の `v` があれば除いた値を Maven の `revision` に渡してビルドします。例えば `v0.1.0` では `mywebapp-0.1.0.war`、`dbscript.tar.gz`、両方を収めた `release-0.1.0.zip`、3ファイルの SHA-256 を記録した `SHA256SUMS` を Forgejo リリースへ添付します。添付が終わるまでは下書きです。同じタグ名のリリースは作り直しません。Forgejo のリリース画面で先にリリースを作る操作は、このワークフローの起動方法ではありません。
+- 下書きの作成: Actions でこのワークフローを `main` から実行し、`tag` にタグ名を入力します。ワークフローではタグ名の形式を検査しません。先頭の `v` があれば除いた値を Maven の `revision` に渡してビルドします。例えば `v0.1.0` では `mywebapp-0.1.0.war`、`dbscript.tar.gz`、両方を収めた `release-0.1.0.zip`、3ファイルの SHA-256 を記録した `SHA256SUMS` を Forgejo の下書きリリースへ添付します。Actions は下書きのまま終了します。内容を確認してリリースノートを追記し、Forgejo の画面から手動で正式公開します。同じタグ名のリリースは作り直しません。Forgejo のリリース画面で先にリリースを作る操作は、このワークフローの起動方法ではありません。
 
 ## 想定されたリリースシェルとの差
 
@@ -32,4 +32,4 @@ java -jar target/mywebapp-0.1.0.war --server.port=18081
 | DDL の除外 | `DDL/USER` と `DDL/*_devenv.sh` | 同じ対象を一時領域の複製から除外 |
 | タグ | 想定ではタグ操作がコメントアウト | 手動リリース時に Forgejo API が入力されたタグを作成。形式チェックはしない |
 
-既存の JAR サンプルと同様に HTTP 疎通検査を行います。ZIP の内容は WAR と `dbscript.tar.gz` 
+既存の JAR サンプルと同様に HTTP 疎通検査を行います。ZIP の内容は WAR と `dbscript.tar.gz` です。

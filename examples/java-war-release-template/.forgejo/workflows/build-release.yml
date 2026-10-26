@@ -6,7 +6,7 @@ on:
   push:
     branches:
       - main
-  # Actions 画面で tag を入力すると、ビルド後にタグとリリースを作成する。
+  # Actions 画面で tag を入力すると、ビルド後に下書きリリースを作成する。
   workflow_dispatch:
     inputs:
       tag:
@@ -122,7 +122,7 @@ jobs:
             sha256sum "$war" dbscript.tar.gz "$bundle" > SHA256SUMS
           )
 
-      - name: Create Forgejo release and attach files
+      - name: Create Forgejo draft release and attach files
         if: forgejo.event_name == 'workflow_dispatch'
         run: |
           set -euo pipefail
@@ -143,7 +143,7 @@ jobs:
             exit 1
           fi
 
-          # 添付途中のリリースを見せないため、まず下書きとして作成する。
+          # ファイル添付後も下書きのまま残し、人が確認してから公開する。
           # 本文にはビルド元の完全なコミット ID と Maven revision を残す。
           payload=$(printf '{"tag_name":"%s","target_commitish":"%s","name":"%s","body":"Source commit: %s\\nMaven revision: %s","draft":true,"prerelease":false}' \
             "$RELEASE_TAG" "$FORGEJO_SHA" "$RELEASE_TAG" "$FORGEJO_SHA" "$revision")
@@ -163,8 +163,4 @@ jobs:
               --form "attachment=@dist/$asset" \
               "$release_url/$release_id/assets?name=$asset" > /dev/null
           done
-          # すべての添付が成功した後に公開する。
-          curl --fail --silent --show-error --request PATCH \
-            --header "Authorization: token ${API_TOKEN}" \
-            --header 'Content-Type: application/json' \
-            --data '{"draft":false}' "$release_url/$release_id" > /dev/null
+          echo "Draft release $RELEASE_TAG is ready for review (ID: $release_id)"

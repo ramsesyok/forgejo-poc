@@ -1,6 +1,6 @@
 name: C++ build and release
 
-# push はビルド・梱包まで確認する。手動実行だけが Forgejo リリースを公開する。
+# push はビルド・梱包まで確認する。手動実行だけが下書きリリースを作成する。
 on:
   push:
     branches:
@@ -50,11 +50,17 @@ jobs:
               echo 'Release tag is required' >&2
               exit 1
             fi
-            bash scripts/build.sh "${RELEASE_TAG#v}"
+            version="${RELEASE_TAG#v}"
           else
             # push 時はサンプル既定版番号でビルドし、リリースは作成しない。
-            bash scripts/build.sh
+            version=0.1.0
           fi
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSAMPLE_VERSION="$version"
+          cmake --build build --parallel 2
+          (cd build && ctest --output-on-failure)
+          test "$(build/bin/cpp-release-sample)" = 'Hello from Forgejo Actions!'
+          test "$(build/bin/cpp-release-sample --version)" = "cpp-release-sample $version"
+          echo "Built and tested cpp-release-sample $version"
 
       - name: 配布ファイルを集めて ZIP 化
         run: |
@@ -67,9 +73,49 @@ jobs:
             bash scripts/package-release.sh
           fi
 
-      - name: Forgejo リリースを作成してファイルを添付
+      - name: Forgejo の下書きリリースを作成してファイルを添付
         if: forgejo.event_name == 'workflow_dispatch'
         run: |
           set -euo pipefail
           cd "$FORGEJO_WORKSPACE/source"
-          bash scripts/publish-release.sh "$RELEASE_TAG"
+          : "${API_TOKEN:?Missing Forgejo Actions token}"
+          : "${FORGEJO_API_URL:?Missing Forgejo API URL}"
+          : "${FORGEJO_REPOSITORY:?Missing Forgejo repository}"
+          : "${FORGEJO_SHA:?Missing triggering commit SHA}"
+
+          artifact="cpp-release-sample-${RELEASE_TAG#v}-linux-x86_64"
+          archive="${artifact}.zip"
+          test -s "dist/$artifact"
+          test -s "dist/$archive"
+          test -s dist/SHA256SUMS
+          (cd dist && sha256sum -c SHA256SUMS)
+
+          release_url="${FORGEJO_API_URL}/repos/${FORGEJO_REPOSITORY}/releases"
+          # 同じタグのリリースがあれば上書きしない。
+          status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+            --header "Authorization: token ${API_TOKEN}" "${release_url}/tags/${RELEASE_TAG}")
+          if [ "$status" != 404 ]; then
+            echo "Release ${RELEASE_TAG} must not exist (API status ${status})" >&2
+            exit 1
+          fi
+
+          # バイナリの添付後も下書きのまま残し、人がノートを追記して公開する。
+          payload=$(printf '{"tag_name":"%s","target_commitish":"%s","name":"%s","body":"Full source commit ID (SHA-1): `%s`","draft":true,"prerelease":false}' \
+            "$RELEASE_TAG" "$FORGEJO_SHA" "$RELEASE_TAG" "$FORGEJO_SHA")
+          response=$(curl --fail --silent --show-error --request POST \
+            --header "Authorization: token ${API_TOKEN}" \
+            --header 'Content-Type: application/json' \
+            --data "$payload" "$release_url")
+          release_id=$(printf '%s' "$response" | perl -ne 'if (/^\{"id":\s*(\d+),/) { print "$1\n"; exit }')
+          if [[ ! "$release_id" =~ ^[0-9]+$ ]]; then
+            echo 'Could not read release ID from Forgejo response' >&2
+            exit 1
+          fi
+
+          for asset in "$artifact" "$archive" SHA256SUMS; do
+            curl --fail --silent --show-error --request POST \
+              --header "Authorization: token ${API_TOKEN}" \
+              --form "attachment=@dist/${asset}" \
+              "${release_url}/${release_id}/assets?name=${asset}" > /dev/null
+          done
+          echo "Draft release ${RELEASE_TAG} is ready for review (ID: ${release_id})"

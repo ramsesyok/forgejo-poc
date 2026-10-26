@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ビルド済み実行ファイルと配布用ファイルを集め、ZIP とチェックサムを作る。
-# 単独で試す場合は、先に bash scripts/build.sh を実行する。
+# 単独で試す場合は、先に CMake でビルドする。
 set -euo pipefail # エラー・未定義変数・パイプ中の失敗があれば終了する。
 
 # 手動リリース時は v を除いた版番号を渡す。形式は限定しない。
@@ -25,7 +25,7 @@ archive="${artifact}.zip"
 
 # 1. ビルド結果と配布用ファイルが揃っているか確認する。
 if [ ! -x "$binary" ]; then
-  echo "Missing build output: $binary (run bash scripts/build.sh first)" >&2
+  echo "Missing build output: $binary (run cmake build first)" >&2
   exit 1
 fi
 for required in "$library_list" README.md start_cpp.sh stop_cpp.sh; do
