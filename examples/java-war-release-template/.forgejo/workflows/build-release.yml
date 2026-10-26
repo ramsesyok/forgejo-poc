@@ -2,14 +2,17 @@
 name: リリースアクション
 
 on:
-  # push ではビルドとテストだけを実行し、リリースは作成しない。
+  # main への push は Maven テストと WAR の HTTP 疎通検査まで実行する。
+  # 配布 ZIP や下書きリリースは作らない。
   push:
     branches:
       - main
-  # Actions 画面で tag を入力すると、ビルド後に下書きリリースを作成する。
+  # Actions 画面で tag を指定したときだけ、配布ファイルと下書きを作る。
+  # 正式公開は、人が添付ファイルとリリースノートを確認した後に行う。
   workflow_dispatch:
     inputs:
       tag:
+        # リリース名に使い、先頭の v を除いた値を Maven revision に使う。
         description: 'Release tag (for example v0.1.0 or 20261024.01)'
         required: true
         type: string
@@ -19,8 +22,9 @@ jobs:
     # 実プロジェクトを実行する Runner のラベルに合わせる。
     runs-on: el8-mydev
     env:
-      # Forgejo がジョブに発行するトークン。ソース取得とリリース登録に使う。
+      # ジョブ終了時に無効になる一時トークン。ソース取得と下書き登録に使う。
       API_TOKEN: ${{ forgejo.token }}
+      # push 時は空。workflow_dispatch 時だけ入力したタグ名が入る。
       RELEASE_TAG: ${{ inputs.tag }}
       # Runner 上のインストール先に合わせる。
       JAVA_HOME: /opt/forgejo-java-tools/jdk
@@ -29,10 +33,12 @@ jobs:
       DEFAULT_REVISION: 0.1.0
       WAR_BASENAME: mywebapp
     steps:
+      # 各 run ステップは別のシェルなので、PATH と作業場所は必要なステップで設定する。
       - name: Download the triggering source commit
         run: |
           set -euo pipefail
-          # 起動元コミットのアーカイブを取得し、ビルド元を固定する。
+          # FORGEJO_SHA はこの実行の対象コミット。後から main が進んでも同じソースを使う。
+          # 一時アーカイブはこのステップ終了時に削除する。
           mkdir -p "$FORGEJO_WORKSPACE/source"
           archive=$(mktemp)
           trap 'rm -f "$archive"' EXIT
@@ -41,16 +47,18 @@ jobs:
             --output "$archive" \
             "${FORGEJO_API_URL}/repos/${FORGEJO_REPOSITORY}/archive/${FORGEJO_SHA}.tar.gz"
           tar -xzf "$archive" --strip-components=1 -C "$FORGEJO_WORKSPACE/source"
+          # ビルド定義と梱包対象の DDL が揃ったソースか確認する。
           test -f "$FORGEJO_WORKSPACE/source/pom.xml"
           test -d "$FORGEJO_WORKSPACE/source/tools/DB/DDL"
 
       - name: Build WAR and run Maven tests
         run: |
           set -euo pipefail
+          # Runner に導入済みの JDK 17 と Maven を使う。
           export PATH="$JAVA_HOME/bin:$MAVEN_HOME/bin:$PATH"
           cd "$FORGEJO_WORKSPACE/source"
           if [ "$FORGEJO_EVENT_NAME" = workflow_dispatch ]; then
-            # リリースは main からの手動実行に限定する。
+            # 下書き作成は main からの手動実行に限定する。
             if [ "$FORGEJO_REF" != refs/heads/main ]; then
               echo 'Release must run from main' >&2
               exit 1
@@ -58,10 +66,12 @@ jobs:
             # タグ名の形式は検査せず、先頭の v だけを Maven revision から除く。
             revision=${RELEASE_TAG#v}
           else
+            # push 時は入力タグがないため、サンプルの既定版番号で検証する。
             revision=$DEFAULT_REVISION
           fi
-          # package の前に clean を実行する。-DskipTests は付けず Maven テストを実行する。
+          # clean と package を一度に実行し、Maven テストを省略しない。
           mvn -B -ntp -Drevision="$revision" clean package
+          # pom.xml が想定した名前の WAR を出力したか確認する。
           test -s "target/${WAR_BASENAME}-${revision}.war"
 
       - name: Start WAR and check HTTP response
@@ -76,10 +86,12 @@ jobs:
           fi
           war="target/${WAR_BASENAME}-${revision}.war"
           port=18081
+          # WAR を localhost だけで起動し、終了時は trap でプロセスを止める。
           java -jar "$war" --server.address=127.0.0.1 --server.port="$port" > target/smoke.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
 
+          # 起動待ちを含め最大 40 回 /hello を試す。期待値と異なればログを表示する。
           for attempt in $(seq 1 40); do
             response=$(curl --silent --fail --max-time 2 "http://127.0.0.1:${port}/hello") && break
             sleep 1
@@ -91,6 +103,7 @@ jobs:
           fi
 
       - name: Package DDL and create release ZIP
+        # push はビルドと疎通検査で終了する。配布物を作るのは手動実行だけ。
         if: forgejo.event_name == 'workflow_dispatch'
         run: |
           set -euo pipefail
@@ -99,13 +112,14 @@ jobs:
           revision=${RELEASE_TAG#v}
           war="${WAR_BASENAME}-${revision}.war"
           bundle="release-${revision}.zip"
+          # WAR 単体も ZIP とは別のリリース添付ファイルにする。
           mkdir -p dist
           cp "target/$war" "dist/$war"
 
           stage=$(mktemp -d)
           trap 'rm -rf -- "$stage"' EXIT
           mkdir -p "$stage/dbscript"
-          # 元の DDL は変更せず、一時領域の複製から環境固有ファイルを除外する。
+          # 元の DDL は変更しない。複製から USER/ と *_devenv.sh を除外する。
           cp -rP tools/DB/DDL "$stage/dbscript/DDL"
           rm -rf -- "$stage/dbscript/DDL/USER"
           for path in "$stage"/dbscript/DDL/*_devenv.sh; do
@@ -115,7 +129,7 @@ jobs:
           done
           tar -czf dist/dbscript.tar.gz -C "$stage" dbscript
 
-          # ZIP は WAR と dbscript.tar.gz を含む。SHA256SUMS は各配布ファイルを検証するためのもの。
+          # ZIP は WAR と dbscript.tar.gz を含む。SHA256SUMS はこの 3 ファイルの内容を記録する。
           (
             cd dist
             jar -cMf "$bundle" "$war" dbscript.tar.gz
@@ -123,6 +137,7 @@ jobs:
           )
 
       - name: Create Forgejo draft release and attach files
+        # 成果物が完成した手動実行だけがこのステップへ進む。
         if: forgejo.event_name == 'workflow_dispatch'
         run: |
           set -euo pipefail
@@ -130,11 +145,12 @@ jobs:
           revision=${RELEASE_TAG#v}
           war="${WAR_BASENAME}-${revision}.war"
           bundle="release-${revision}.zip"
+          # 4 件すべてが空でないことを確認してから Forgejo API を呼ぶ。
           for asset in "$war" dbscript.tar.gz "$bundle" SHA256SUMS; do
             test -s "dist/$asset"
           done
 
-          # 同名リリースの上書きを避ける。404 の場合だけ新規作成する。
+          # 404 は未作成を示す。それ以外なら既存リリースの上書きを避けて止める。
           release_url="${FORGEJO_API_URL}/repos/${FORGEJO_REPOSITORY}/releases"
           status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
             --header "Authorization: token ${API_TOKEN}" "$release_url/tags/$RELEASE_TAG")
@@ -143,7 +159,7 @@ jobs:
             exit 1
           fi
 
-          # ファイル添付後も下書きのまま残し、人が確認してから公開する。
+          # draft:true で作成し、添付後も draft:false には変更しない。
           # 本文にはビルド元の完全なコミット ID と Maven revision を残す。
           payload=$(printf '{"tag_name":"%s","target_commitish":"%s","name":"%s","body":"Source commit: %s\\nMaven revision: %s","draft":true,"prerelease":false}' \
             "$RELEASE_TAG" "$FORGEJO_SHA" "$RELEASE_TAG" "$FORGEJO_SHA" "$revision")
@@ -151,12 +167,15 @@ jobs:
             --header "Authorization: token ${API_TOKEN}" \
             --header 'Content-Type: application/json' \
             --data "$payload" "$release_url")
+          # 返された ID を添付先に使う。読めなければ別のリリースへ誤添付しないよう止める。
           release_id=$(printf '%s' "$response" | perl -ne 'if (/^\{"id":\s*(\d+),/) { print "$1\n"; exit }')
           if [[ ! "$release_id" =~ ^[0-9]+$ ]]; then
             echo 'Could not read release ID from Forgejo response' >&2
             exit 1
           fi
 
+          # WAR、DDL、ZIP、チェックサムを下書きへ順に登録する。
+          # 途中で失敗した場合は不完全な下書きが残るため、公開前に内容を確認する。
           for asset in "$war" dbscript.tar.gz "$bundle" SHA256SUMS; do
             curl --fail --silent --show-error --request POST \
               --header "Authorization: token ${API_TOKEN}" \

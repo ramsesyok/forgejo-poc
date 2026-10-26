@@ -1,6 +1,7 @@
 name: C++ build and release
 
-# push はビルド・梱包まで確認する。手動実行だけが下書きリリースを作成する。
+# main への push はビルド、CTest、配布ファイルの作成まで確認する。
+# tag を指定した手動実行だけが下書きリリースを作る。正式公開は人が画面で行う。
 on:
   push:
     branches:
@@ -8,6 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
+        # Git タグとリリース名に使い、先頭の v を除いた値をビルド版番号に使う。
         description: 'Release tag (for example v0.1.0 or 20261024.01)'
         required: true
         type: string
@@ -17,15 +19,17 @@ jobs:
     # このサンプルの CMake と C++ コンパイラがある Runner を選ぶ。
     runs-on: el8-mydev
     env:
-      # Forgejo がこのジョブに渡す一時トークン。ソース取得とリリース登録に使う。
+      # ジョブ終了時に無効になる一時トークン。ソース取得と下書き登録に使う。
       API_TOKEN: ${{ forgejo.token }}
+      # push 時は空。workflow_dispatch 時だけ入力したタグ名が入る。
       RELEASE_TAG: ${{ inputs.tag }}
     steps:
-      # 各 run ステップは別のシェルなので、必要なステップでは毎回 source へ移動する。
+      # 各 run ステップは別のシェルなので、作業場所はステップごとに指定する。
       - name: 実行対象コミットのソースを取得
         run: |
           set -euo pipefail
-          # 実行を起動したコミットを取得し、途中で main が進んでも対象を固定する。
+          # FORGEJO_SHA はこの実行の対象コミット。後から main が進んでも同じソースを使う。
+          # 一時アーカイブはこのステップ終了時に削除する。
           mkdir -p "$FORGEJO_WORKSPACE/source"
           archive=$(mktemp)
           trap 'rm -f "$archive"' EXIT
@@ -34,6 +38,7 @@ jobs:
             --output "$archive" \
             "${FORGEJO_API_URL}/repos/${FORGEJO_REPOSITORY}/archive/${FORGEJO_SHA}.tar.gz"
           tar -xzf "$archive" --strip-components=1 -C "$FORGEJO_WORKSPACE/source"
+          # 想定した C++ リポジトリのソースを取得できたか確認する。
           test -f "$FORGEJO_WORKSPACE/source/CMakeLists.txt"
 
       - name: C++ をビルドしてテスト
@@ -41,7 +46,8 @@ jobs:
           set -euo pipefail
           cd "$FORGEJO_WORKSPACE/source"
           if [ "$FORGEJO_EVENT_NAME" = workflow_dispatch ]; then
-            # 手動リリースは main からの実行に限定する。タグ名の形式は検査しない。
+            # 手動実行は main に限定し、タグ未入力ならビルド前に止める。
+            # タグ名の形式は検査せず、先頭に v があれば版番号から除く。
             if [ "$FORGEJO_REF" != refs/heads/main ]; then
               echo 'Release must run from main' >&2
               exit 1
@@ -52,12 +58,14 @@ jobs:
             fi
             version="${RELEASE_TAG#v}"
           else
-            # push 時はサンプル既定版番号でビルドし、リリースは作成しない。
+            # push 時は入力タグがないため、サンプルの既定版番号で検証する。
             version=0.1.0
           fi
+          # Release 構成でビルドし、CMakeLists.txt に定義したテストを実行する。
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSAMPLE_VERSION="$version"
           cmake --build build --parallel 2
           (cd build && ctest --output-on-failure)
+          # CTest に加えて、配布する実行ファイルの通常出力と版番号を照合する。
           test "$(build/bin/cpp-release-sample)" = 'Hello from Forgejo Actions!'
           test "$(build/bin/cpp-release-sample --version)" = "cpp-release-sample $version"
           echo "Built and tested cpp-release-sample $version"
@@ -66,7 +74,8 @@ jobs:
         run: |
           set -euo pipefail
           cd "$FORGEJO_WORKSPACE/source"
-          # package-release.sh がライブラリと起動・停止シェルを集め、ZIP と SHA256SUMS を作る。
+          # 配布物を集める処理だけをスクリプトに残す。ZIP と SHA256SUMS もここで作る。
+          # 手動実行ではビルドと同じ版番号を渡す。push 時も梱包まで検証する。
           if [ "$FORGEJO_EVENT_NAME" = workflow_dispatch ]; then
             bash scripts/package-release.sh "${RELEASE_TAG#v}"
           else
@@ -74,15 +83,18 @@ jobs:
           fi
 
       - name: Forgejo の下書きリリースを作成してファイルを添付
+        # push ではリリースを作らない。人がタグを指定したときだけ実行する。
         if: forgejo.event_name == 'workflow_dispatch'
         run: |
           set -euo pipefail
           cd "$FORGEJO_WORKSPACE/source"
+          # API 通信に必要な値がないまま下書き作成へ進まない。
           : "${API_TOKEN:?Missing Forgejo Actions token}"
           : "${FORGEJO_API_URL:?Missing Forgejo API URL}"
           : "${FORGEJO_REPOSITORY:?Missing Forgejo repository}"
           : "${FORGEJO_SHA:?Missing triggering commit SHA}"
 
+          # 必要な添付ファイルと、その内容を記録した SHA256SUMS を確認する。
           artifact="cpp-release-sample-${RELEASE_TAG#v}-linux-x86_64"
           archive="${artifact}.zip"
           test -s "dist/$artifact"
@@ -91,7 +103,7 @@ jobs:
           (cd dist && sha256sum -c SHA256SUMS)
 
           release_url="${FORGEJO_API_URL}/repos/${FORGEJO_REPOSITORY}/releases"
-          # 同じタグのリリースがあれば上書きしない。
+          # 404 は未作成を示す。それ以外なら既存リリースの上書きや重複作成を避けて止める。
           status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
             --header "Authorization: token ${API_TOKEN}" "${release_url}/tags/${RELEASE_TAG}")
           if [ "$status" != 404 ]; then
@@ -99,19 +111,23 @@ jobs:
             exit 1
           fi
 
-          # バイナリの添付後も下書きのまま残し、人がノートを追記して公開する。
+          # FORGEJO_SHA を元コミットとして記録し、完全な ID をリリース本文にも残す。
+          # draft:true で作成し、添付後も draft:false には変更しない。
           payload=$(printf '{"tag_name":"%s","target_commitish":"%s","name":"%s","body":"Full source commit ID (SHA-1): `%s`","draft":true,"prerelease":false}' \
             "$RELEASE_TAG" "$FORGEJO_SHA" "$RELEASE_TAG" "$FORGEJO_SHA")
           response=$(curl --fail --silent --show-error --request POST \
             --header "Authorization: token ${API_TOKEN}" \
             --header 'Content-Type: application/json' \
             --data "$payload" "$release_url")
+          # 返された ID を添付先に使う。読めなければ別のリリースへ誤添付しないよう止める。
           release_id=$(printf '%s' "$response" | perl -ne 'if (/^\{"id":\s*(\d+),/) { print "$1\n"; exit }')
           if [[ ! "$release_id" =~ ^[0-9]+$ ]]; then
             echo 'Could not read release ID from Forgejo response' >&2
             exit 1
           fi
 
+          # 実行ファイル、配布 ZIP、チェックサムを下書きへ順に登録する。
+          # 途中で失敗した場合は不完全な下書きが残るため、公開前に内容を確認する。
           for asset in "$artifact" "$archive" SHA256SUMS; do
             curl --fail --silent --show-error --request POST \
               --header "Authorization: token ${API_TOKEN}" \
