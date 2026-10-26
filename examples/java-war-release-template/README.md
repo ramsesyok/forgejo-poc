@@ -32,8 +32,4 @@ java -jar target/mywebapp-0.1.0.war --server.port=18081
 | DDL の除外 | `DDL/USER` と `DDL/*_devenv.sh` | 同じ対象を一時領域の複製から除外 |
 | タグ | 想定ではタグ操作がコメントアウト | 手動リリース時に Forgejo API が入力されたタグを作成。形式チェックはしない |
 
-既存の JAR サンプルと同様に HTTP 疎通検査を行います。ZIP の内容は WAR と `dbscript.tar.gz` です。
-
-## 旧名称での検証結果
-
-以下は名称変更前の実行記録です。2026-10-24 に検証 VM 上の Maven 3.10.0 と JDK 17 で `mvn clean package` を実行し、テスト 1 件の成功と旧名の `planning-api-0.1.0.war` の生成を確認しました。さらに Forgejo Actions の手動実行で `20261024.01` リリースを公開しました。WAR の `/hello` 応答、ZIP 内の WAR と `dbscript.tar.gz`、DDL アーカイブからの `USER/` と `*_devenv.sh` の除外、配布ファイル 3 件の `SHA256SUMS` 照合を確認しました。
+既存の JAR サンプルと同様に HTTP 疎通検査を行います。ZIP の内容は WAR と `dbscript.tar.gz` 
