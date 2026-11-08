@@ -18,6 +18,7 @@
 | [installation.md](installation.md) | Forgejo と検証 VM を新規構築・再現するとき。ここでは `forgejo-admin` 所有リポジトリ向けの Runner も登録する |
 | [myproject-runner-registration.md](myproject-runner-registration.md) | 既存の検証 VM に `myproject` 組織向けの Runner 接続を追加するとき |
 | [forgejo-workflow.md](forgejo-workflow.md) | 組織配下にリポジトリを新規作成、または既存の GitLab などから移行し、ワークフローと Actions を動かすとき |
+| [manual-release.md](manual-release.md) | Actions を使わず、手動で用意した配布ファイルを下書きリリースへ登録するとき |
 | [Java WAR サンプル](examples/java-war-release-template/README.md) | WAR、DDL アーカイブ、ZIP の内容を実プロジェクトへ合わせるとき |
 | [C++ サンプル](examples/cpp-release-sample/README.md) | 実行ファイル、起動・停止シェル、共有ライブラリの梱包を合わせるとき |
 
